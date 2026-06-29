@@ -135,6 +135,11 @@ body {
 .cat { flex: 1; text-align: center; font-size: 12.5px; font-weight: 600; padding: 9px 7px; border-radius: 8px; border: 1px solid var(--border-strong); cursor: pointer; background: var(--surface); }
 .cat.on { background: var(--primary); border-color: var(--primary); color: #fff; }
 
+/* 소분류(업무 종류) 2열 그리드 + 설명 textarea */
+.subcat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+textarea.inp { min-height: 64px; resize: vertical; line-height: 1.5; font-family: inherit; }
+.field-hint { font-size: 11px; color: var(--text-3); margin-top: 5px; line-height: 1.5; }
+
 /* 빈 페이지(스텁) */
 .stub { display: grid; place-items: center; min-height: 50vh; color: var(--text-3); font-size: 14px; gap: 8px; text-align: center; }
 

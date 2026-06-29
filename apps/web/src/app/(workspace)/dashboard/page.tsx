@@ -9,6 +9,24 @@ const CATEGORIES = [
   { key: "project", ic: "📁", label: "프로젝트" },
 ] as const;
 
+// 소분류 = 업무 종류(taskType · 산출물 요구 4분류) — SPEC 2-1 B
+const TASKTYPES = [
+  { key: "report", label: "📊 보고링크" },
+  { key: "video", label: "🎥 설명영상" },
+  { key: "both", label: "📊🎥 둘 다" },
+  { key: "none", label: "— 없음" },
+] as const;
+
+const TASKTYPE_HINT: Record<string, string> = {
+  report: "기대 보고 형식 안내 (예: 주차별 진행률 포함)",
+  video: "영상에 담을 항목 (예: 결과 시연 / 코드 설명)",
+  both: "보고 형식 + 영상 항목 모두 안내",
+  none: "산출물 없이 상태 변경만으로 완료",
+};
+
+const DEFAULT_AI_PROMPT = `당신은 업무 정의 어시스턴트입니다. 아래 간략 메모를 바탕으로 담당자가 바로 이해하고 착수할 수 있는 업무설명 문서를 작성하세요.
+출력: 1) 배경/목적  2) 목표(완료기준)  3) 작업범위  4) 요구 산출물  5) 체크포인트/마감`;
+
 const PRIOS = [
   { key: "urgent", label: "긴급" },
   { key: "high", label: "높음" },
@@ -21,8 +39,12 @@ const PRESETS: Status[] = ["on", "away", "dnd", "off"];
 
 export default function DashboardPage() {
   const [category, setCategory] = useState<string>("long");
+  const [taskType, setTaskType] = useState<string>("report");
   const [assignees, setAssignees] = useState<string[]>(["김서연"]);
   const [prio, setPrio] = useState<string>("high");
+  const [description, setDescription] = useState<string>("");
+  const [aiPrompt, setAiPrompt] = useState<string>(DEFAULT_AI_PROMPT);
+  const [showPrompt, setShowPrompt] = useState<boolean>(false);
   const [myStatus, setMyStatus] = useState<Status>("on");
 
   const toggleAssignee = (name: string) =>
@@ -121,6 +143,21 @@ export default function DashboardPage() {
               ) : (
                 <>
                   <div className="assign-field">
+                    <label>업무 종류 (소분류 · 산출물 요구)</label>
+                    <div className="subcat-grid">
+                      {TASKTYPES.map((t) => (
+                        <div
+                          key={t.key}
+                          className={`cat${taskType === t.key ? " on" : ""}`}
+                          onClick={() => setTaskType(t.key)}
+                        >
+                          {t.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="assign-field">
                     <label>담당자</label>
                     <div className="chips">
                       {ASSIGNEES.map((name) => (
@@ -134,10 +171,12 @@ export default function DashboardPage() {
                       ))}
                     </div>
                   </div>
+
                   <div className="assign-field">
                     <label>태스크 제목</label>
                     <input className="inp" placeholder="예: 랜딩 페이지 반응형 작업" />
                   </div>
+
                   <div className="assign-field" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div>
                       <label>마감일</label>
@@ -152,6 +191,7 @@ export default function DashboardPage() {
                       </select>
                     </div>
                   </div>
+
                   <div className="assign-field">
                     <label>우선순위</label>
                     <div className="prio-row">
@@ -166,6 +206,47 @@ export default function DashboardPage() {
                       ))}
                     </div>
                   </div>
+
+                  {/* 상세 설명 (간략 메모) — 소분류별 가이드 */}
+                  <div className="assign-field">
+                    <label>상세 설명 (간략 메모)</label>
+                    <textarea
+                      className="inp"
+                      placeholder="업무를 간략히 적으면 AI가 정돈된 업무설명 doc으로 만들어줘요"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                    />
+                    {taskType !== "none" && (
+                      <div className="field-hint">💡 {TASKTYPE_HINT[taskType]}</div>
+                    )}
+                  </div>
+
+                  {/* AI 정리 프롬프트 (수정 가능) + 생성 */}
+                  <div className="assign-field">
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <label style={{ margin: 0 }}>AI 정리 프롬프트</label>
+                      <button
+                        type="button"
+                        className="btn sm"
+                        style={{ marginLeft: "auto", padding: "3px 9px" }}
+                        onClick={() => setShowPrompt((s) => !s)}
+                      >
+                        {showPrompt ? "숨기기" : "프롬프트 수정"}
+                      </button>
+                    </div>
+                    {showPrompt && (
+                      <textarea
+                        className="inp"
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        style={{ minHeight: 96 }}
+                      />
+                    )}
+                    <button type="button" className="btn" style={{ width: "100%", marginTop: 8 }}>
+                      🤖 AI 업무설명 doc 생성
+                    </button>
+                  </div>
+
                   <div className="assign-field">
                     <button className="btn primary" style={{ width: "100%" }}>태스크 부여하고 알림 보내기</button>
                   </div>
