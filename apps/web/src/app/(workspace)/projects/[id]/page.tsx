@@ -1,23 +1,14 @@
 import Link from "next/link";
 import AiSummaryCard from "./AiSummaryCard";
+import Kanban from "./Kanban";
 import MembersEditor from "./MembersEditor";
 import ProjectThread from "./ProjectThread";
 import {
   api,
   progressColor,
   type Message,
-  type Priority,
   type ProjectDetail,
-  type TaskStatus,
-  type TaskInProject,
 } from "@/lib/api";
-
-const PRI: Record<Priority, { label: string; cls: string }> = {
-  urgent: { label: "긴급", cls: "u" },
-  high: { label: "높음", cls: "h" },
-  medium: { label: "보통", cls: "m" },
-  low: { label: "낮음", cls: "l" },
-};
 
 const ROLE_LABEL: Record<string, string> = {
   lead: "리드",
@@ -26,33 +17,12 @@ const ROLE_LABEL: Record<string, string> = {
   etc: "기타",
 };
 
-const COLS: { key: TaskStatus | "done"; label: string; emoji: string }[] = [
-  { key: "todo", label: "할일", emoji: "📥" },
-  { key: "doing", label: "진행중", emoji: "🔄" },
-  { key: "review", label: "검토중", emoji: "👀" },
-  { key: "done", label: "완료", emoji: "✅" },
-];
-
 function fmtRange(s: string | null, e: string | null): string {
   const f = (d: string | null) =>
     d
       ? `${new Date(d).getFullYear()}.${String(new Date(d).getMonth() + 1).padStart(2, "0")}.${String(new Date(d).getDate()).padStart(2, "0")}`
       : "";
   return [f(s), f(e)].filter(Boolean).join(" – ");
-}
-
-function md(d: string | null): string {
-  if (!d) return "";
-  const dt = new Date(d);
-  return `${dt.getMonth() + 1}/${dt.getDate()}`;
-}
-
-function colTasks(tasks: TaskInProject[], key: TaskStatus | "done") {
-  if (key === "done")
-    return tasks.filter(
-      (t) => t.status === "done" || t.status === "completed_pending",
-    );
-  return tasks.filter((t) => t.status === key);
 }
 
 export default async function ProjectDetail({
@@ -238,32 +208,7 @@ export default async function ProjectDetail({
           <div className="sec-title mb16">
             <span className="em">📋</span> 태스크 보드
           </div>
-          <div className="kanban">
-            {COLS.map((col) => {
-              const items = colTasks(project.tasks, col.key);
-              return (
-                <div key={col.key} className="kcol">
-                  <div className="kcol-head">
-                    {col.emoji} {col.label} <span className="n">{items.length}</span>
-                  </div>
-                  {items.map((t) => (
-                    <div key={t.id} className="kcard">
-                      <div className="kt">{t.title}</div>
-                      <div className="kf">
-                        <span className={`pri ${PRI[t.priority].cls}`}>
-                          {PRI[t.priority].label}
-                        </span>
-                        {t.dueDate && <span className="dd">{md(t.dueDate)}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-          <div className="hint" style={{ marginTop: 12 }}>
-            ↔ 카드를 드래그해 상태를 변경할 수 있어요 (드래그 연동 예정)
-          </div>
+          <Kanban initial={project.tasks} />
         </div>
       </div>
     </>
