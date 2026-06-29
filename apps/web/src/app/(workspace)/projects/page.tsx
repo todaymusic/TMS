@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { api, progressColor, type ProjectListItem, type Member } from "@/lib/api";
+import NewProjectModal from "./NewProjectModal";
 
 function fmt(d: string | null): string {
   if (!d) return "";
@@ -105,7 +106,7 @@ export default async function ProjectsPage() {
             );
           })}
 
-          <div className="card proj-card new-proj">＋ 새 프로젝트</div>
+          <NewProjectModal />
         </div>
 
         {archived.length > 0 && (
