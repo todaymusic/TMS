@@ -3,29 +3,15 @@
 import { useState } from "react";
 import { TEAM, STATUS_LABEL, progressColor, type Status } from "@/lib/mock";
 
+// 업무 대분류 (category)
 const CATEGORIES = [
   { key: "long", ic: "🎬", label: "롱" },
   { key: "shorts", ic: "⚡", label: "쇼츠" },
   { key: "project", ic: "📁", label: "프로젝트" },
 ] as const;
 
-// 소분류 = 업무 종류(taskType · 산출물 요구 4분류) — SPEC 2-1 B
-const TASKTYPES = [
-  { key: "report", label: "📊 보고링크" },
-  { key: "video", label: "🎥 설명영상" },
-  { key: "both", label: "📊🎥 둘 다" },
-  { key: "none", label: "— 없음" },
-] as const;
-
-const TASKTYPE_HINT: Record<string, string> = {
-  report: "기대 보고 형식 안내 (예: 주차별 진행률 포함)",
-  video: "영상에 담을 항목 (예: 결과 시연 / 코드 설명)",
-  both: "보고 형식 + 영상 항목 모두 안내",
-  none: "산출물 없이 상태 변경만으로 완료",
-};
-
-const DEFAULT_AI_PROMPT = `당신은 업무 정의 어시스턴트입니다. 아래 간략 메모를 바탕으로 담당자가 바로 이해하고 착수할 수 있는 업무설명 문서를 작성하세요.
-출력: 1) 배경/목적  2) 목표(완료기준)  3) 작업범위  4) 요구 산출물  5) 체크포인트/마감`;
+// 소분류 (업무 영역) — 프랜차이즈 기업 기준
+const SUBCATS = ["디자인", "개발", "마케팅", "기획", "지점업무", "교육", "운영", "인사·총무"];
 
 const PRIOS = [
   { key: "urgent", label: "긴급" },
@@ -34,14 +20,19 @@ const PRIOS = [
   { key: "low", label: "낮음" },
 ] as const;
 
+const DEFAULT_AI_PROMPT = `당신은 업무 정의 어시스턴트입니다. 아래 간략 메모를 바탕으로 담당자가 바로 이해하고 착수할 수 있는 업무설명 문서를 작성하세요.
+출력: 1) 배경/목적  2) 목표(완료기준)  3) 작업범위  4) 요구 산출물  5) 체크포인트/마감`;
+
 const ASSIGNEES = ["김서연", "이준호", "박민지", "최우진"];
 const PRESETS: Status[] = ["on", "away", "dnd", "off"];
 
 export default function DashboardPage() {
   const [category, setCategory] = useState<string>("long");
-  const [taskType, setTaskType] = useState<string>("report");
-  const [assignees, setAssignees] = useState<string[]>(["김서연"]);
+  const [subcat, setSubcat] = useState<string>("디자인");
   const [prio, setPrio] = useState<string>("high");
+  const [needReport, setNeedReport] = useState<boolean>(true);
+  const [needVideo, setNeedVideo] = useState<boolean>(false);
+  const [assignees, setAssignees] = useState<string[]>(["김서연"]);
   const [description, setDescription] = useState<string>("");
   const [aiPrompt, setAiPrompt] = useState<string>(DEFAULT_AI_PROMPT);
   const [showPrompt, setShowPrompt] = useState<boolean>(false);
@@ -51,6 +42,10 @@ export default function DashboardPage() {
     setAssignees((a) => (a.includes(name) ? a.filter((x) => x !== name) : [...a, name]));
 
   const isProject = category === "project";
+  const outputHint = [
+    needReport ? "보고 형식 안내 (예: 주차별 진행률 포함)" : null,
+    needVideo ? "영상에 담을 항목 (예: 결과 시연 / 코드 설명)" : null,
+  ].filter(Boolean).join(" · ");
 
   return (
     <>
@@ -108,6 +103,7 @@ export default function DashboardPage() {
             <div className="card">
               <div className="panel-head"><div className="sec-title"><span className="em">📋</span> 업무 부여</div></div>
 
+              {/* 1. 업무 대분류 */}
               <div className="assign-field">
                 <label>업무 대분류</label>
                 <div className="cat-row">
@@ -142,56 +138,23 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <>
+                  {/* 2. 소분류 (업무 영역) */}
                   <div className="assign-field">
-                    <label>업무 종류 (소분류 · 산출물 요구)</label>
-                    <div className="subcat-grid">
-                      {TASKTYPES.map((t) => (
-                        <div
-                          key={t.key}
-                          className={`cat${taskType === t.key ? " on" : ""}`}
-                          onClick={() => setTaskType(t.key)}
-                        >
-                          {t.label}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="assign-field">
-                    <label>담당자</label>
+                    <label>소분류 (업무 영역)</label>
                     <div className="chips">
-                      {ASSIGNEES.map((name) => (
+                      {SUBCATS.map((s) => (
                         <span
-                          key={name}
-                          className={`chip${assignees.includes(name) ? " on" : ""}`}
-                          onClick={() => toggleAssignee(name)}
+                          key={s}
+                          className={`chip${subcat === s ? " on" : ""}`}
+                          onClick={() => setSubcat(s)}
                         >
-                          {name}
+                          {s}
                         </span>
                       ))}
                     </div>
                   </div>
 
-                  <div className="assign-field">
-                    <label>태스크 제목</label>
-                    <input className="inp" placeholder="예: 랜딩 페이지 반응형 작업" />
-                  </div>
-
-                  <div className="assign-field" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div>
-                      <label>마감일</label>
-                      <input className="inp" type="date" defaultValue="2026-07-03" />
-                    </div>
-                    <div>
-                      <label>프로젝트</label>
-                      <select className="inp">
-                        <option>연결 안 함</option>
-                        <option>웹 리뉴얼</option>
-                        <option>앱 v2.0</option>
-                      </select>
-                    </div>
-                  </div>
-
+                  {/* 3. 우선순위 */}
                   <div className="assign-field">
                     <label>우선순위</label>
                     <div className="prio-row">
@@ -207,7 +170,60 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* 상세 설명 (간략 메모) — 소분류별 가이드 */}
+                  {/* 4. 산출물 요구 (체크박스) */}
+                  <div className="assign-field">
+                    <label>산출물 요구</label>
+                    <div className="chk-row">
+                      <label className="chk">
+                        <input type="checkbox" checked={needReport} onChange={(e) => setNeedReport(e.target.checked)} />
+                        📊 보고링크
+                      </label>
+                      <label className="chk">
+                        <input type="checkbox" checked={needVideo} onChange={(e) => setNeedVideo(e.target.checked)} />
+                        🎥 설명영상
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* 5. 담당자 */}
+                  <div className="assign-field">
+                    <label>담당자</label>
+                    <div className="chips">
+                      {ASSIGNEES.map((name) => (
+                        <span
+                          key={name}
+                          className={`chip${assignees.includes(name) ? " on" : ""}`}
+                          onClick={() => toggleAssignee(name)}
+                        >
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 6. 태스크 제목 */}
+                  <div className="assign-field">
+                    <label>태스크 제목</label>
+                    <input className="inp" placeholder="예: 6월 신메뉴 포스터 디자인" />
+                  </div>
+
+                  {/* 7-8. 마감일 / 프로젝트 */}
+                  <div className="assign-field" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div>
+                      <label>마감일</label>
+                      <input className="inp" type="date" defaultValue="2026-07-03" />
+                    </div>
+                    <div>
+                      <label>프로젝트</label>
+                      <select className="inp">
+                        <option>연결 안 함</option>
+                        <option>웹 리뉴얼</option>
+                        <option>앱 v2.0</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* 9. 상세 설명 */}
                   <div className="assign-field">
                     <label>상세 설명 (간략 메모)</label>
                     <textarea
@@ -216,15 +232,13 @@ export default function DashboardPage() {
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                     />
-                    {taskType !== "none" && (
-                      <div className="field-hint">💡 {TASKTYPE_HINT[taskType]}</div>
-                    )}
+                    {outputHint && <div className="field-hint">💡 {outputHint}</div>}
                   </div>
 
-                  {/* AI 정리 프롬프트 (수정 가능) + 생성 */}
+                  {/* 10. AI 정리 프롬프트 */}
                   <div className="assign-field">
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <label style={{ margin: 0 }}>AI 정리 프롬프트</label>
+                      <label style={{ margin: 0 }}>상세 설명 프롬프트 (AI 정리)</label>
                       <button
                         type="button"
                         className="btn sm"
