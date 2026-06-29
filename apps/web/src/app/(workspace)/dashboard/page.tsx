@@ -5,8 +5,8 @@ import { TEAM, STATUS_LABEL, progressColor, type Status } from "@/lib/mock";
 
 // 업무 대분류 (category)
 const CATEGORIES = [
-  { key: "long", ic: "🎬", label: "롱" },
-  { key: "shorts", ic: "⚡", label: "쇼츠" },
+  { key: "long", ic: "⏳", label: "롱", desc: "긴 업무" },
+  { key: "shorts", ic: "⚡", label: "쇼츠", desc: "짧은 업무" },
   { key: "project", ic: "📁", label: "프로젝트" },
 ] as const;
 
