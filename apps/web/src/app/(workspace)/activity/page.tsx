@@ -44,6 +44,12 @@ export default function ActivityPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // 업무 종료 산출물 입력 모달
+  const [endTask, setEndTask] = useState<Task | null>(null);
+  const [endReport, setEndReport] = useState("");
+  const [endVideo, setEndVideo] = useState("");
+  const [endNote, setEndNote] = useState("");
+  const [endBusy, setEndBusy] = useState(false);
 
   async function load() {
     if (!me) return;
@@ -76,13 +82,25 @@ export default function ActivityPage() {
       setBusy(null);
     }
   }
-  async function finish(id: string) {
-    setBusy(id);
+  function openEnd(t: Task) {
+    setEndTask(t);
+    setEndReport(t.reportLink ?? "");
+    setEndVideo(t.videoLink ?? "");
+    setEndNote("");
+  }
+  async function submitEnd() {
+    if (!endTask) return;
+    setEndBusy(true);
     try {
-      await api.post(`/tasks/${id}/end`, {});
+      await api.post(`/tasks/${endTask.id}/end`, {
+        reportLink: endReport.trim() || undefined,
+        videoLink: endVideo.trim() || undefined,
+        note: endNote.trim() || undefined,
+      });
+      setEndTask(null);
       await load();
     } finally {
-      setBusy(null);
+      setEndBusy(false);
     }
   }
 
@@ -166,7 +184,7 @@ export default function ActivityPage() {
                           <span className="meta">⏱ {hm(it.dueDate)}</span>
                           <button
                             className="btn sm"
-                            onClick={() => finish(it.id)}
+                            onClick={() => openEnd(it)}
                             disabled={busy === it.id}
                           >
                             종료
@@ -250,6 +268,86 @@ export default function ActivityPage() {
           </div>
         </div>
       </div>
+
+      {endTask && (
+        <div
+          onClick={() => !endBusy && setEndTask(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 50,
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="card"
+            style={{ width: "100%", maxWidth: 460, padding: 22 }}
+          >
+            <div className="panel-head">
+              <div className="sec-title">
+                <span className="em">✅</span> 업무 종료 — {endTask.title}
+              </div>
+            </div>
+            {!endTask.reportRequired && !endTask.videoRequired && (
+              <div className="field-hint" style={{ marginBottom: 8 }}>
+                이 업무는 산출물 요구가 없어요. 메모만 남기고 종료할 수 있습니다.
+              </div>
+            )}
+            {endTask.reportRequired && (
+              <div className="assign-field">
+                <label>📊 보고링크</label>
+                <input
+                  className="inp"
+                  value={endReport}
+                  onChange={(e) => setEndReport(e.target.value)}
+                  placeholder="https://..."
+                />
+              </div>
+            )}
+            {endTask.videoRequired && (
+              <div className="assign-field">
+                <label>🎥 설명영상 링크</label>
+                <input
+                  className="inp"
+                  value={endVideo}
+                  onChange={(e) => setEndVideo(e.target.value)}
+                  placeholder="https://..."
+                />
+              </div>
+            )}
+            <div className="assign-field">
+              <label>완료 메모 (선택)</label>
+              <textarea
+                className="inp"
+                value={endNote}
+                onChange={(e) => setEndNote(e.target.value)}
+                placeholder="마무리 코멘트"
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className="btn"
+                style={{ flex: 1 }}
+                onClick={() => !endBusy && setEndTask(null)}
+              >
+                취소
+              </button>
+              <button
+                className="btn primary"
+                style={{ flex: 2 }}
+                onClick={submitEnd}
+                disabled={endBusy}
+              >
+                {endBusy ? "처리 중…" : "종료 처리"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
