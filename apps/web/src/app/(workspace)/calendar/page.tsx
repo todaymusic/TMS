@@ -14,6 +14,13 @@ const EVENTS: Record<number, Ev[]> = {
 const DOWS = ["월", "화", "수", "목", "금", "토", "일"];
 const TODAY = 29; // 2026-06-29
 
+// 이벤트 색(인라인): 완료=초록 / 진행중=파랑 / 지연=빨강
+const EV_STYLE: Record<Ev[0], React.CSSProperties> = {
+  done: { background: "#dcfce7", color: "#15803d" },
+  prog: { background: "#dbeafe", color: "#1d4ed8" },
+  late: { background: "#fee2e2", color: "#b91c1c" },
+};
+
 export default function CalendarPage() {
   return (
     <>
@@ -45,7 +52,7 @@ export default function CalendarPage() {
             <div key={d} className={`cal-cell${d === TODAY ? " today" : ""}`}>
               <div className="cal-num">{d}</div>
               {(EVENTS[d] || []).map((e, idx) => (
-                <div key={idx} className={`cal-ev ${e[0]}`}>{e[1]}</div>
+                <div key={idx} className="cal-ev" style={EV_STYLE[e[0]]}>{e[1]}</div>
               ))}
             </div>
           ))}
