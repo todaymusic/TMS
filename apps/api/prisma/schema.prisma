@@ -71,6 +71,7 @@ model User {
   id            String     @id @default(cuid())
   email         String     @unique
   name          String
+  password      String? // bcrypt 해시 (이메일+비번 로그인). 기존 행은 null 허용
   dept          String? // 부서
   role          String? // 직책
   avatarColor   String     @default("#4f46e5")
