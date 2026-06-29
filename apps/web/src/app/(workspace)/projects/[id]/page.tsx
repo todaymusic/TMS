@@ -67,93 +67,91 @@ export default async function ProjectDetail({
           </div>
         </div>
 
+        {/* 상단 2단: AI 요약 + 커뮤니케이션 */}
         <div className="detail-cols">
-          {/* 좌: AI 요약 + 스레드 */}
-          <div>
-            <div className="card ai-card">
-              <div className="ai-head">
-                <span className="pill teal">🤖 AI 소통 요약</span>
-                <span className="upd">마지막 갱신 · 오늘 09:00</span>
-                <button className="btn sm" style={{ marginLeft: 8 }}>지금 요약</button>
-              </div>
-              <div className="ai-block">
-                <div className="h">1) 핵심 결정사항</div>
-                <ul>
-                  <li>메인 히어로는 풀스크린 영상 대신 인터랙티브 일러스트로 확정</li>
-                  <li>디자인 토큰은 Tailwind config로 단일화</li>
-                </ul>
-              </div>
-              <div className="ai-block">
-                <div className="h">2) 진행 상황</div>
-                <ul><li>메인·소개 페이지 디자인 완료, 개발 착수 (62%)</li></ul>
-              </div>
-              <div className="ai-block">
-                <div className="h">3) 미결 이슈 / 액션아이템</div>
-                <ul>
-                  <li>모바일 GNB 동작 방식 미정 → <b>이준호</b> 6/27까지 시안</li>
-                  <li>API 응답 스펙 확정 필요 → 백엔드팀 확인 대기</li>
-                </ul>
-              </div>
+          <div className="card ai-card" style={{ marginBottom: 0 }}>
+            <div className="ai-head">
+              <span className="pill teal">🤖 AI 소통 요약</span>
+              <span className="upd">마지막 갱신 · 오늘 09:00</span>
+              <button className="btn sm" style={{ marginLeft: 8 }}>지금 요약</button>
             </div>
-
-            <div className="card">
-              <div className="panel-head"><div className="sec-title"><span className="em">💬</span> 커뮤니케이션</div><span className="count">메시지 24</span></div>
-              <div className="thread">
-                <div className="msg">
-                  <div className="avatar" style={{ background: "#4f46e5" }}>김</div>
-                  <div className="msg-body">
-                    <div className="msg-top"><span className="msg-name">김서연</span><span className="msg-time">오늘 09:42</span></div>
-                    <div className="msg-text">메인 히어로 일러스트 시안 올렸어요. <span className="mention">@이준호</span> 개발 들어가기 전에 인터랙션 한 번만 봐주세요!</div>
-                    <div className="reactions"><span className="rx on">👍 2</span><span className="rx">🎉 1</span></div>
-                  </div>
-                </div>
-                <div className="msg">
-                  <div className="avatar" style={{ background: "#0f766e" }}>이</div>
-                  <div className="msg-body">
-                    <div className="msg-top"><span className="msg-name">이준호</span><span className="msg-time">오늘 10:15</span></div>
-                    <div className="msg-text">좋아요. 스크롤 트리거는 이 패턴으로 갈게요.</div>
-                    <div className="code-blk">{`const reveal = useScrollReveal({\n  threshold: 0.2,\n  once: true,\n});`}</div>
-                  </div>
-                </div>
-                <div className="msg">
-                  <div className="avatar" style={{ background: "#4f46e5" }}>김</div>
-                  <div className="msg-body">
-                    <div className="msg-top"><span className="msg-name">김서연</span><span className="msg-time">오늘 10:31</span></div>
-                    <div className="msg-text">완벽 👍 모바일 GNB만 내일 시안 같이 정하시죠.</div>
-                  </div>
-                </div>
-              </div>
-              <div className="composer">
-                <input className="inp" placeholder="메시지 입력…  @멘션 · 파일첨부 · 코드블록 지원" />
-                <button className="btn primary sm">전송</button>
-              </div>
+            <div className="ai-block">
+              <div className="h">1) 핵심 결정사항</div>
+              <ul>
+                <li>메인 히어로는 풀스크린 영상 대신 인터랙티브 일러스트로 확정</li>
+                <li>디자인 토큰은 Tailwind config로 단일화</li>
+              </ul>
+            </div>
+            <div className="ai-block">
+              <div className="h">2) 진행 상황</div>
+              <ul><li>메인·소개 페이지 디자인 완료, 개발 착수 (62%)</li></ul>
+            </div>
+            <div className="ai-block">
+              <div className="h">3) 미결 이슈 / 액션아이템</div>
+              <ul>
+                <li>모바일 GNB 동작 방식 미정 → <b>이준호</b> 6/27까지 시안</li>
+                <li>API 응답 스펙 확정 필요 → 백엔드팀 확인 대기</li>
+              </ul>
             </div>
           </div>
 
-          {/* 우: 태스크 보드 */}
-          <div className="card" style={{ padding: "16px 14px" }}>
-            <div className="sec-title mb16" style={{ padding: "0 4px" }}><span className="em">📋</span> 태스크 보드</div>
-            <div className="kanban">
-              <div className="kcol">
-                <div className="kcol-head">📥 할일 <span className="n">2</span></div>
-                <div className="kcard"><div className="kt">모바일 GNB 시안</div><div className="kf"><span className="pri h">높음</span><span className="dd">6/27</span></div></div>
-                <div className="kcard"><div className="kt">푸터 리디자인</div><div className="kf"><span className="pri l">낮음</span><span className="dd">6/30</span></div></div>
+          <div className="card">
+            <div className="panel-head"><div className="sec-title"><span className="em">💬</span> 커뮤니케이션</div><span className="count">메시지 24</span></div>
+            <div className="thread">
+              <div className="msg">
+                <div className="avatar" style={{ background: "#4f46e5" }}>김</div>
+                <div className="msg-body">
+                  <div className="msg-top"><span className="msg-name">김서연</span><span className="msg-time">오늘 09:42</span></div>
+                  <div className="msg-text">메인 히어로 일러스트 시안 올렸어요. <span className="mention">@이준호</span> 개발 들어가기 전에 인터랙션 봐주세요!</div>
+                  <div className="reactions"><span className="rx on">👍 2</span><span className="rx">🎉 1</span></div>
+                </div>
               </div>
-              <div className="kcol">
-                <div className="kcol-head">🔄 진행중 <span className="n">1</span></div>
-                <div className="kcard"><div className="kt">메인 히어로 개발</div><div className="kf"><span className="pri u">긴급</span><span className="dd">6/26</span></div></div>
+              <div className="msg">
+                <div className="avatar" style={{ background: "#0f766e" }}>이</div>
+                <div className="msg-body">
+                  <div className="msg-top"><span className="msg-name">이준호</span><span className="msg-time">오늘 10:15</span></div>
+                  <div className="msg-text">좋아요. 스크롤 트리거는 이 패턴으로 갈게요.</div>
+                  <div className="code-blk">{`const reveal = useScrollReveal({\n  threshold: 0.2,\n  once: true,\n});`}</div>
+                </div>
               </div>
-              <div className="kcol">
-                <div className="kcol-head">👀 검토중 <span className="n">1</span></div>
-                <div className="kcard"><div className="kt">소개 페이지 QA</div><div className="kf"><span className="pri m">보통</span><span className="dd">6/28</span></div></div>
-              </div>
-              <div className="kcol">
-                <div className="kcol-head">✅ 완료 <span className="n">1</span></div>
-                <div className="kcard"><div className="kt">디자인 토큰 정리</div><div className="kf"><span className="pri m">보통</span><span className="dd">6/24</span></div></div>
+              <div className="msg">
+                <div className="avatar" style={{ background: "#4f46e5" }}>김</div>
+                <div className="msg-body">
+                  <div className="msg-top"><span className="msg-name">김서연</span><span className="msg-time">오늘 10:31</span></div>
+                  <div className="msg-text">완벽 👍 모바일 GNB만 내일 시안 같이 정하시죠.</div>
+                </div>
               </div>
             </div>
-            <div className="hint" style={{ marginTop: 12, padding: "0 4px" }}>↔ 카드를 드래그해 상태를 변경할 수 있어요</div>
+            <div className="composer">
+              <input className="inp" placeholder="메시지 입력…  @멘션 · 파일첨부 · 코드블록" />
+              <button className="btn primary sm">전송</button>
+            </div>
           </div>
+        </div>
+
+        {/* 태스크 보드 — 전체 너비(잘림 방지) */}
+        <div className="card" style={{ padding: "16px 18px", marginTop: 18 }}>
+          <div className="sec-title mb16"><span className="em">📋</span> 태스크 보드</div>
+          <div className="kanban">
+            <div className="kcol">
+              <div className="kcol-head">📥 할일 <span className="n">2</span></div>
+              <div className="kcard"><div className="kt">모바일 GNB 시안</div><div className="kf"><span className="pri h">높음</span><span className="dd">6/27</span></div></div>
+              <div className="kcard"><div className="kt">푸터 리디자인</div><div className="kf"><span className="pri l">낮음</span><span className="dd">6/30</span></div></div>
+            </div>
+            <div className="kcol">
+              <div className="kcol-head">🔄 진행중 <span className="n">1</span></div>
+              <div className="kcard"><div className="kt">메인 히어로 개발</div><div className="kf"><span className="pri u">긴급</span><span className="dd">6/26</span></div></div>
+            </div>
+            <div className="kcol">
+              <div className="kcol-head">👀 검토중 <span className="n">1</span></div>
+              <div className="kcard"><div className="kt">소개 페이지 QA</div><div className="kf"><span className="pri m">보통</span><span className="dd">6/28</span></div></div>
+            </div>
+            <div className="kcol">
+              <div className="kcol-head">✅ 완료 <span className="n">1</span></div>
+              <div className="kcard"><div className="kt">디자인 토큰 정리</div><div className="kf"><span className="pri m">보통</span><span className="dd">6/24</span></div></div>
+            </div>
+          </div>
+          <div className="hint" style={{ marginTop: 12 }}>↔ 카드를 드래그해 상태를 변경할 수 있어요</div>
         </div>
       </div>
     </>
