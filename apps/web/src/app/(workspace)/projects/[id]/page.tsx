@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AiSummaryCard from "./AiSummaryCard";
+import MembersEditor from "./MembersEditor";
 import {
   api,
   progressColor,
@@ -116,9 +117,16 @@ export default async function ProjectDetail({
                 <div className="overview">{project.overview}</div>
               )}
             </div>
-            <span className="pill indigo" style={{ marginLeft: "auto" }}>
-              {project.status === "active" ? "진행중" : "아카이브"}
-            </span>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+              <MembersEditor
+                projectId={project.id}
+                owners={project.owners}
+                participants={project.participants}
+              />
+              <span className="pill indigo">
+                {project.status === "active" ? "진행중" : "아카이브"}
+              </span>
+            </div>
           </div>
           <div className="pinned-grid">
             <div>

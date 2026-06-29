@@ -45,8 +45,20 @@ export default function Sidebar() {
       ))}
 
       <div className="nav-div" />
-      <div className="nav-item"><span className="ic">💬</span><span className="label">DM / 채팅</span></div>
-      <div className="nav-item"><span className="ic">⚙️</span><span className="label">설정</span></div>
+      <Link
+        href="/dm"
+        className={`nav-item${pathname.startsWith("/dm") ? " active" : ""}`}
+      >
+        <span className="ic">💬</span>
+        <span className="label">DM / 채팅</span>
+      </Link>
+      <Link
+        href="/settings"
+        className={`nav-item${pathname.startsWith("/settings") ? " active" : ""}`}
+      >
+        <span className="ic">⚙️</span>
+        <span className="label">설정</span>
+      </Link>
 
       <div className="status-box" onClick={() => setMenuOpen((o) => !o)}>
         <div className="lbl">{user ? user.name : "내 상태"}</div>
