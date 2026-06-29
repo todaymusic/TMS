@@ -141,6 +141,19 @@ export type Message = {
   user: UserBrief;
 };
 
+export type LeaveType = "annual" | "half" | "sick" | "etc";
+export type LeaveStatus = "requested" | "approved" | "rejected";
+
+export type Leave = {
+  id: string;
+  type: LeaveType;
+  startDate: string;
+  endDate: string;
+  reason: string | null;
+  status: LeaveStatus;
+  createdAt: string;
+};
+
 export type User = {
   id: string;
   email: string;
