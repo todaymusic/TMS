@@ -2,8 +2,10 @@
 // 용어: 담당자=owner, 참여자=participant, 부여자=assigner, 수행자=assignee
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  runtime      = "nodejs"
+  moduleFormat = "cjs"
 }
 
 datasource db {
