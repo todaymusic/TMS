@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 export class AppService {
   health() {
     return {
-      service: 'workly-api',
+      service: 'tms-api',
       status: 'ok',
       time: new Date().toISOString(),
     };

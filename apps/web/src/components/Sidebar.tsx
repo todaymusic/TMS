@@ -22,9 +22,9 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-mark">W</div>
+        <div className="brand-mark">T</div>
         <div>
-          <div className="brand-name">Workly</div>
+          <div className="brand-name">TMS</div>
           <div className="brand-sub">디자인팀 워크스페이스</div>
         </div>
       </div>

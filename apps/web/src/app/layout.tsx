@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Workly — 사내 업무 관리",
-  description: "Workly 워크스페이스",
+  title: "TMS — 사내 업무 관리",
+  description: "TMS 워크스페이스",
 };
 
 export default function RootLayout({

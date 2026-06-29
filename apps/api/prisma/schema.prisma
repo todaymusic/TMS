@@ -1,4 +1,4 @@
-// Workly 데이터 모델 — SPEC 4장 기준 (v1.3 반영: subCategory, reportRequired/videoRequired)
+// TMS 데이터 모델 — SPEC 4장 기준 (v1.3 반영: subCategory, reportRequired/videoRequired)
 // 용어: 담당자=owner, 참여자=participant, 부여자=assigner, 수행자=assignee
 
 generator client {

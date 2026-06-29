@@ -1,12 +1,12 @@
-# Workly 로컬 인프라 — Docker Desktop 설치 후 `docker compose up -d`
+# TMS 로컬 인프라 — Docker Desktop 설치 후 `docker compose up -d`
 services:
   postgres:
     image: postgres:16
-    container_name: workly-postgres
+    container_name: tms-postgres
     environment:
-      POSTGRES_USER: workly
-      POSTGRES_PASSWORD: workly
-      POSTGRES_DB: workly
+      POSTGRES_USER: tms
+      POSTGRES_PASSWORD: tms
+      POSTGRES_DB: tms
     ports:
       - "5432:5432"
     volumes:
@@ -14,15 +14,15 @@ services:
 
   redis:
     image: redis:7
-    container_name: workly-redis
+    container_name: tms-redis
     ports:
       - "6379:6379"
 
   meilisearch:
     image: getmeili/meilisearch:v1.10
-    container_name: workly-meili
+    container_name: tms-meili
     environment:
-      MEILI_MASTER_KEY: workly_dev_key
+      MEILI_MASTER_KEY: tms_dev_key
       MEILI_ENV: development
     ports:
       - "7700:7700"

@@ -1,6 +1,6 @@
-# Workly API (`apps/api`)
+# TMS API (`apps/api`)
 
-NestJS + Prisma 7(드라이버 어댑터, `@prisma/adapter-pg`) 기반의 Workly 백엔드.
+NestJS + Prisma 7(드라이버 어댑터, `@prisma/adapter-pg`) 기반의 TMS 백엔드.
 
 ## 스택
 - **NestJS 11** (REST, `/api` prefix, 글로벌 ValidationPipe)
@@ -46,7 +46,7 @@ GET /api/health  →  { service, status: "ok", time }
    - build: `npm run build` (= `prisma generate && nest build`)
    - start: `npx prisma migrate deploy; node dist/src/main` (마이그레이션 적용 후 기동)
 
-> ⚠️ todaymusic/ohhello와 **DB를 공유하지 말 것** — Workly 전용 PostgreSQL 서비스를 따로 둘 것.
+> ⚠️ todaymusic/ohhello와 **DB를 공유하지 말 것** — TMS 전용 PostgreSQL 서비스를 따로 둘 것.
 
 ## 환경변수 (`.env`)
 ```

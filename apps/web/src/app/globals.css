@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ===== Workly 디자인 토큰 (PROTOTYPE.html 기준) ===== */
+/* ===== TMS 디자인 토큰 (PROTOTYPE.html 기준) ===== */
 :root {
   --ink: #1b1c22; --ink-2: #24262e; --ink-3: #2f323c;
   --canvas: #f4f3ef; --surface: #ffffff; --surface-2: #faf9f6;

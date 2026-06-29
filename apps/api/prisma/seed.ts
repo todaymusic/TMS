@@ -1,5 +1,5 @@
 /**
- * Workly 시드 데이터 — DB 연결 후 `npm run db:seed` 실행.
+ * TMS 시드 데이터 — DB 연결 후 `npm run db:seed` 실행.
  * 샘플 사용자 / 프로젝트(담당자·참여자) / 업무(롱·쇼츠·프로젝트) / 근태·알림.
  */
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -9,15 +9,15 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('🌱 Seeding Workly...');
+  console.log('🌱 Seeding TMS...');
 
   // ───────── 사용자 ─────────
   const [hana, jisoo, minho, yuna] = await Promise.all([
     prisma.user.upsert({
-      where: { email: 'hana@workly.dev' },
+      where: { email: 'hana@tms.dev' },
       update: {},
       create: {
-        email: 'hana@workly.dev',
+        email: 'hana@tms.dev',
         name: '김하나',
         dept: '콘텐츠팀',
         role: '팀장',
@@ -27,10 +27,10 @@ async function main() {
       },
     }),
     prisma.user.upsert({
-      where: { email: 'jisoo@workly.dev' },
+      where: { email: 'jisoo@tms.dev' },
       update: {},
       create: {
-        email: 'jisoo@workly.dev',
+        email: 'jisoo@tms.dev',
         name: '박지수',
         dept: '디자인팀',
         role: '디자이너',
@@ -39,10 +39,10 @@ async function main() {
       },
     }),
     prisma.user.upsert({
-      where: { email: 'minho@workly.dev' },
+      where: { email: 'minho@tms.dev' },
       update: {},
       create: {
-        email: 'minho@workly.dev',
+        email: 'minho@tms.dev',
         name: '이민호',
         dept: '개발팀',
         role: '개발자',
@@ -51,10 +51,10 @@ async function main() {
       },
     }),
     prisma.user.upsert({
-      where: { email: 'yuna@workly.dev' },
+      where: { email: 'yuna@tms.dev' },
       update: {},
       create: {
-        email: 'yuna@workly.dev',
+        email: 'yuna@tms.dev',
         name: '최유나',
         dept: '마케팅팀',
         role: '마케터',
