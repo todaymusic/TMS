@@ -44,7 +44,7 @@ GET /api/health  →  { service, status: "ok", time }
 3. 환경변수: `DATABASE_URL`(필수), `ANTHROPIC_API_KEY`(AI 기능 시), `PORT`는 Railway가 자동 주입.
 4. `railway.json` 이 빌드/시작을 정의:
    - build: `npm run build` (= `prisma generate && nest build`)
-   - start: `npx prisma db push --skip-generate; node dist/src/main` (스키마를 DB에 동기화 후 기동)
+   - start: `npx prisma db push; node dist/src/main` (스키마를 DB에 동기화 후 기동)
    - 초기 개발 단계라 마이그레이션 파일 대신 `db push` 사용. 스키마 안정화 후 `migrate` 전환 권장.
 
 > ⚠️ todaymusic/ohhello와 **DB를 공유하지 말 것** — TMS 전용 PostgreSQL 서비스를 따로 둘 것.
