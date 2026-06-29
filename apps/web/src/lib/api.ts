@@ -7,13 +7,23 @@ const BASE =
 
 type Json = Record<string, unknown>;
 
+function authToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem('tms_token');
+}
+
 async function request<T>(
   path: string,
   options?: { method?: string; body?: Json; cache?: RequestCache },
 ): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (options?.body) headers['Content-Type'] = 'application/json';
+  const token = authToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const res = await fetch(`${BASE}${path}`, {
     method: options?.method ?? 'GET',
-    headers: options?.body ? { 'Content-Type': 'application/json' } : undefined,
+    headers,
     body: options?.body ? JSON.stringify(options.body) : undefined,
     // 데이터가 자주 바뀌므로 캐시하지 않음(필요 시 호출부에서 조정)
     cache: options?.cache ?? 'no-store',

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { STATUS_LABEL, type UserStatus } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 const NAV = [
   { href: "/dashboard", ic: "🏠", label: "대시보드" },
@@ -16,6 +17,7 @@ const STATUSES: UserStatus[] = ["on", "away", "dnd", "off"];
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
   const [status, setUserStatus] = useState<UserStatus>("on");
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -47,7 +49,7 @@ export default function Sidebar() {
       <div className="nav-item"><span className="ic">⚙️</span><span className="label">설정</span></div>
 
       <div className="status-box" onClick={() => setMenuOpen((o) => !o)}>
-        <div className="lbl">내 상태</div>
+        <div className="lbl">{user ? user.name : "내 상태"}</div>
         <div className="status-now">
           <span className={`dot ${status}`} />
           <span className="txt">{STATUS_LABEL[status]}</span>
@@ -68,6 +70,16 @@ export default function Sidebar() {
               {STATUS_LABEL[s]}
             </div>
           ))}
+          <div
+            className="status-opt"
+            style={{ borderTop: "1px solid var(--border)", color: "#dc2626" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              logout();
+            }}
+          >
+            🚪 로그아웃
+          </div>
         </div>
       </div>
     </aside>

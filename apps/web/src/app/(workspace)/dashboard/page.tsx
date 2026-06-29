@@ -10,6 +10,7 @@ import {
   type User,
   type UserStatus,
 } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 // 업무 대분류 (category)
 const CATEGORIES = [
@@ -58,8 +59,8 @@ export default function DashboardPage() {
 
   const [myStatus, setMyStatus] = useState<UserStatus>("on");
 
-  // 인증 전: 첫 사용자를 "나(부여자)"로 임시 사용
-  const me = users[0];
+  // 로그인한 사용자 = "나(부여자)"
+  const { user: me } = useAuth();
 
   async function load() {
     setLoading(true);

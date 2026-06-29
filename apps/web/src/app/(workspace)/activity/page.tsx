@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, type Task, type User } from "@/lib/api";
+import { api, type Task } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 type Notif = {
   id: string;
@@ -37,7 +38,7 @@ function ago(d: string): string {
 }
 
 export default function ActivityPage() {
-  const [me, setMe] = useState<User | null>(null);
+  const { user: me } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,19 +46,15 @@ export default function ActivityPage() {
   const [busy, setBusy] = useState<string | null>(null);
 
   async function load() {
+    if (!me) return;
     setErr(null);
     try {
-      const users = await api.get<User[]>("/users");
-      const meUser = users[0] ?? null;
-      setMe(meUser);
-      if (meUser) {
-        const [t, n] = await Promise.all([
-          api.get<Task[]>(`/tasks?assigneeId=${meUser.id}`),
-          api.get<Notif[]>(`/notifications?userId=${meUser.id}`),
-        ]);
-        setTasks(t);
-        setNotifs(n);
-      }
+      const [t, n] = await Promise.all([
+        api.get<Task[]>(`/tasks?assigneeId=${me.id}`),
+        api.get<Notif[]>(`/notifications?userId=${me.id}`),
+      ]);
+      setTasks(t);
+      setNotifs(n);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "불러오기 실패");
     } finally {
@@ -68,7 +65,7 @@ export default function ActivityPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [me]);
 
   async function start(id: string) {
     setBusy(id);
