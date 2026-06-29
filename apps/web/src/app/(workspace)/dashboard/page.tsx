@@ -56,6 +56,8 @@ export default function DashboardPage() {
   const [showPrompt, setShowPrompt] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<string | null>(null);
+  const [aiDoc, setAiDoc] = useState<string>("");
+  const [aiBusy, setAiBusy] = useState(false);
 
   const [myStatus, setMyStatus] = useState<UserStatus>("on");
 
@@ -104,6 +106,28 @@ export default function DashboardPage() {
   }
   const onlineCount = users.filter((u) => u.status !== "off").length;
 
+  async function generateDoc() {
+    if (!description.trim()) {
+      setSubmitMsg("AI 정리할 상세 설명(메모)을 먼저 입력하세요");
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const r = await api.post<{ doc: string }>("/ai/task-doc", {
+        memo: description,
+        prompt: aiPrompt,
+        title,
+        category,
+        subCategory: subcat,
+      });
+      setAiDoc(r.doc);
+    } catch (e) {
+      setAiDoc(`(생성 실패: ${e instanceof Error ? e.message : "오류"})`);
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   async function submitTask() {
     if (!title.trim()) {
       setSubmitMsg("제목을 입력하세요");
@@ -128,10 +152,13 @@ export default function DashboardPage() {
         projectId: projectId || undefined,
         dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
         description: description.trim() || undefined,
+        descriptionPrompt: aiPrompt.trim() || undefined,
+        aiDescriptionDoc: aiDoc.trim() || undefined,
       });
       setSubmitMsg("✅ 업무를 부여했습니다");
       setTitle("");
       setDescription("");
+      setAiDoc("");
       await load();
     } catch (e) {
       setSubmitMsg(e instanceof Error ? e.message : "부여 실패");
@@ -396,9 +423,28 @@ export default function DashboardPage() {
                         style={{ minHeight: 96 }}
                       />
                     )}
-                    <button type="button" className="btn" style={{ width: "100%", marginTop: 8 }} disabled>
-                      🤖 AI 업무설명 doc 생성 (연동 예정)
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ width: "100%", marginTop: 8 }}
+                      onClick={generateDoc}
+                      disabled={aiBusy}
+                    >
+                      {aiBusy ? "생성 중…" : "🤖 AI 업무설명 doc 생성"}
                     </button>
+                    {aiDoc && (
+                      <textarea
+                        className="inp"
+                        value={aiDoc}
+                        onChange={(e) => setAiDoc(e.target.value)}
+                        style={{ minHeight: 140, marginTop: 8 }}
+                      />
+                    )}
+                    {aiDoc && (
+                      <div className="field-hint">
+                        ✏️ 생성된 업무설명 doc — 수정 가능, 부여 시 함께 저장됩니다
+                      </div>
+                    )}
                   </div>
 
                   <div className="assign-field">

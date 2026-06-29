@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AiSummaryCard from "./AiSummaryCard";
 import {
   api,
   progressColor,
@@ -208,21 +209,10 @@ export default async function ProjectDetail({
 
         {/* 상단 2단: AI 요약 + 커뮤니케이션 */}
         <div className="detail-cols">
-          <div className="card ai-card" style={{ marginBottom: 0 }}>
-            <div className="ai-head">
-              <span className="pill teal">🤖 AI 소통 요약</span>
-              <button className="btn sm" style={{ marginLeft: "auto" }}>
-                지금 요약
-              </button>
-            </div>
-            <div
-              className="ai-block"
-              style={{ color: "var(--text-3)", fontSize: 13 }}
-            >
-              아직 AI 요약이 없습니다. 대화가 쌓이면 «지금 요약»으로 생성할 수
-              있어요. (AI 연동 예정)
-            </div>
-          </div>
+          <AiSummaryCard
+            projectId={project.id}
+            initial={project.aiSummary as Parameters<typeof AiSummaryCard>[0]["initial"]}
+          />
 
           <div className="card">
             <div className="panel-head">
