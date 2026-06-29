@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { STATUS_LABEL, type Status } from "@/lib/mock";
+import { STATUS_LABEL, type UserStatus } from "@/lib/api";
 
 const NAV = [
   { href: "/dashboard", ic: "🏠", label: "대시보드" },
@@ -12,11 +12,11 @@ const NAV = [
   { href: "/activity", ic: "👤", label: "내 활동", badge: 3 },
 ] as const;
 
-const STATUSES: Status[] = ["on", "away", "dnd", "off"];
+const STATUSES: UserStatus[] = ["on", "away", "dnd", "off"];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [status, setStatus] = useState<Status>("on");
+  const [status, setUserStatus] = useState<UserStatus>("on");
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -60,7 +60,7 @@ export default function Sidebar() {
               className="status-opt"
               onClick={(e) => {
                 e.stopPropagation();
-                setStatus(s);
+                setUserStatus(s);
                 setMenuOpen(false);
               }}
             >
