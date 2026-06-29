@@ -1,69 +1,208 @@
 import Link from "next/link";
+import {
+  api,
+  progressColor,
+  type Message,
+  type Priority,
+  type ProjectDetail,
+  type TaskStatus,
+  type TaskInProject,
+} from "@/lib/api";
 
-// 프로젝트 상세 — Phase 1 쉘(목업: 웹 리뉴얼). 추후 id로 실제 데이터 로드.
+const PRI: Record<Priority, { label: string; cls: string }> = {
+  urgent: { label: "긴급", cls: "u" },
+  high: { label: "높음", cls: "h" },
+  medium: { label: "보통", cls: "m" },
+  low: { label: "낮음", cls: "l" },
+};
+
+const ROLE_LABEL: Record<string, string> = {
+  lead: "리드",
+  design: "디자인",
+  dev: "개발",
+  etc: "기타",
+};
+
+const COLS: { key: TaskStatus | "done"; label: string; emoji: string }[] = [
+  { key: "todo", label: "할일", emoji: "📥" },
+  { key: "doing", label: "진행중", emoji: "🔄" },
+  { key: "review", label: "검토중", emoji: "👀" },
+  { key: "done", label: "완료", emoji: "✅" },
+];
+
+function fmtRange(s: string | null, e: string | null): string {
+  const f = (d: string | null) =>
+    d
+      ? `${new Date(d).getFullYear()}.${String(new Date(d).getMonth() + 1).padStart(2, "0")}.${String(new Date(d).getDate()).padStart(2, "0")}`
+      : "";
+  return [f(s), f(e)].filter(Boolean).join(" – ");
+}
+
+function md(d: string | null): string {
+  if (!d) return "";
+  const dt = new Date(d);
+  return `${dt.getMonth() + 1}/${dt.getDate()}`;
+}
+
+function colTasks(tasks: TaskInProject[], key: TaskStatus | "done") {
+  if (key === "done")
+    return tasks.filter(
+      (t) => t.status === "done" || t.status === "completed_pending",
+    );
+  return tasks.filter((t) => t.status === key);
+}
+
 export default async function ProjectDetail({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await params; // Next 16: params는 Promise
+  const { id } = await params;
+
+  let project: ProjectDetail | null = null;
+  let messages: Message[] = [];
+  let error: string | null = null;
+  try {
+    project = await api.get<ProjectDetail>(`/projects/${id}`);
+    messages = await api.get<Message[]>(`/messages?projectId=${id}`);
+  } catch (e) {
+    error = e instanceof Error ? e.message : "불러오기 실패";
+  }
+
+  if (error || !project) {
+    return (
+      <>
+        <div className="topbar">
+          <div>
+            <h1>프로젝트</h1>
+            <div className="sub">불러오기 실패</div>
+          </div>
+        </div>
+        <div className="content">
+          <Link href="/projects" className="detail-back">
+            ← 프로젝트 목록으로
+          </Link>
+          <div className="card" style={{ color: "#dc2626" }}>
+            프로젝트를 불러오지 못했습니다. {error}
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  const links = project.links ?? [];
 
   return (
     <>
       <div className="topbar">
         <div>
           <h1>프로젝트</h1>
-          <div className="sub">웹 리뉴얼</div>
+          <div className="sub">{project.name}</div>
         </div>
       </div>
 
       <div className="content">
-        <Link href="/projects" className="detail-back">← 프로젝트 목록으로</Link>
+        <Link href="/projects" className="detail-back">
+          ← 프로젝트 목록으로
+        </Link>
 
         {/* 고정 상단 */}
         <div className="card pinned">
           <div className="pinned-top">
             <div>
-              <h2>웹 리뉴얼</h2>
-              <div className="overview">코퍼레이트 웹사이트 전면 개편 — 브랜드 리프레시 및 반응형 전환</div>
+              <h2>{project.name}</h2>
+              {project.overview && (
+                <div className="overview">{project.overview}</div>
+              )}
             </div>
-            <span className="pill indigo" style={{ marginLeft: "auto" }}>📌 고정</span>
+            <span className="pill indigo" style={{ marginLeft: "auto" }}>
+              {project.status === "active" ? "진행중" : "아카이브"}
+            </span>
           </div>
           <div className="pinned-grid">
-            <div><div className="field-lbl">기간</div><div className="field-val">2026.06.01 – 06.20</div></div>
+            <div>
+              <div className="field-lbl">기간</div>
+              <div className="field-val">
+                {fmtRange(project.startDate, project.endDate) || "—"}
+              </div>
+            </div>
             <div>
               <div className="field-lbl">진행률</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div className="prog" style={{ flex: 1 }}><i style={{ width: "62%" }} /></div>
-                <b style={{ fontSize: 13 }}>62%</b>
+                <div className="prog" style={{ flex: 1 }}>
+                  <i
+                    style={{
+                      width: `${project.progress}%`,
+                      background: progressColor(project.progress),
+                    }}
+                  />
+                </div>
+                <b style={{ fontSize: 13 }}>{project.progress}%</b>
               </div>
             </div>
             <div>
               <div className="field-lbl">담당자 맵핑</div>
               <div className="role-map">
-                <span>리드 · <b>김서연</b></span>
-                <span>디자인 · <b>김서연</b></span>
-                <span>개발 · <b>이준호</b></span>
+                {project.owners.length === 0 && (
+                  <span style={{ color: "var(--text-3)" }}>—</span>
+                )}
+                {project.owners.map((o) => (
+                  <span key={o.id}>
+                    {ROLE_LABEL[o.role ?? "etc"] ?? o.role} ·{" "}
+                    <b>{o.user.name}</b>
+                  </span>
+                ))}
               </div>
             </div>
             <div style={{ gridColumn: "1 / -1" }}>
               <div className="field-lbl">참여자</div>
-              <div className="field-val" style={{ fontWeight: 400, color: "var(--text-2)", fontSize: 13 }}>박민지 · 정하늘</div>
-            </div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <div className="field-lbl">업무 설명</div>
-              <div className="field-val" style={{ fontWeight: 400, color: "var(--text-2)", fontSize: 13, lineHeight: 1.6 }}>
-                메인·서브 페이지 14종 리디자인, 디자인 시스템 토큰화, Next.js 마이그레이션. 6/20 내부 QA 후 7월 초 배포 목표.
+              <div
+                className="field-val"
+                style={{
+                  fontWeight: 400,
+                  color: "var(--text-2)",
+                  fontSize: 13,
+                }}
+              >
+                {project.participants.length
+                  ? project.participants.map((p) => p.user.name).join(" · ")
+                  : "—"}
               </div>
             </div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <div className="field-lbl">관련 데이터</div>
-              <div className="links">
-                <span className="link-chip">🎨 Figma 디자인</span>
-                <span className="link-chip">📄 기획서.pdf</span>
-                <span className="link-chip">🔌 API 명세서</span>
+            {project.description && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div className="field-lbl">업무 설명</div>
+                <div
+                  className="field-val"
+                  style={{
+                    fontWeight: 400,
+                    color: "var(--text-2)",
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {project.description}
+                </div>
               </div>
-            </div>
+            )}
+            {links.length > 0 && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div className="field-lbl">관련 데이터</div>
+                <div className="links">
+                  {links.map((l, i) => (
+                    <a
+                      key={i}
+                      href={l.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="link-chip"
+                    >
+                      🔗 {l.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -72,86 +211,98 @@ export default async function ProjectDetail({
           <div className="card ai-card" style={{ marginBottom: 0 }}>
             <div className="ai-head">
               <span className="pill teal">🤖 AI 소통 요약</span>
-              <span className="upd">마지막 갱신 · 오늘 09:00</span>
-              <button className="btn sm" style={{ marginLeft: 8 }}>지금 요약</button>
+              <button className="btn sm" style={{ marginLeft: "auto" }}>
+                지금 요약
+              </button>
             </div>
-            <div className="ai-block">
-              <div className="h">1) 핵심 결정사항</div>
-              <ul>
-                <li>메인 히어로는 풀스크린 영상 대신 인터랙티브 일러스트로 확정</li>
-                <li>디자인 토큰은 Tailwind config로 단일화</li>
-              </ul>
-            </div>
-            <div className="ai-block">
-              <div className="h">2) 진행 상황</div>
-              <ul><li>메인·소개 페이지 디자인 완료, 개발 착수 (62%)</li></ul>
-            </div>
-            <div className="ai-block">
-              <div className="h">3) 미결 이슈 / 액션아이템</div>
-              <ul>
-                <li>모바일 GNB 동작 방식 미정 → <b>이준호</b> 6/27까지 시안</li>
-                <li>API 응답 스펙 확정 필요 → 백엔드팀 확인 대기</li>
-              </ul>
+            <div
+              className="ai-block"
+              style={{ color: "var(--text-3)", fontSize: 13 }}
+            >
+              아직 AI 요약이 없습니다. 대화가 쌓이면 «지금 요약»으로 생성할 수
+              있어요. (AI 연동 예정)
             </div>
           </div>
 
           <div className="card">
-            <div className="panel-head"><div className="sec-title"><span className="em">💬</span> 커뮤니케이션</div><span className="count">메시지 24</span></div>
+            <div className="panel-head">
+              <div className="sec-title">
+                <span className="em">💬</span> 커뮤니케이션
+              </div>
+              <span className="count">메시지 {messages.length}</span>
+            </div>
             <div className="thread">
-              <div className="msg">
-                <div className="avatar" style={{ background: "#4f46e5" }}>김</div>
-                <div className="msg-body">
-                  <div className="msg-top"><span className="msg-name">김서연</span><span className="msg-time">오늘 09:42</span></div>
-                  <div className="msg-text">메인 히어로 일러스트 시안 올렸어요. <span className="mention">@이준호</span> 개발 들어가기 전에 인터랙션 봐주세요!</div>
-                  <div className="reactions"><span className="rx on">👍 2</span><span className="rx">🎉 1</span></div>
+              {messages.length === 0 && (
+                <div style={{ color: "var(--text-3)", fontSize: 13, padding: 8 }}>
+                  아직 메시지가 없습니다. 첫 메시지를 남겨보세요.
                 </div>
-              </div>
-              <div className="msg">
-                <div className="avatar" style={{ background: "#0f766e" }}>이</div>
-                <div className="msg-body">
-                  <div className="msg-top"><span className="msg-name">이준호</span><span className="msg-time">오늘 10:15</span></div>
-                  <div className="msg-text">좋아요. 스크롤 트리거는 이 패턴으로 갈게요.</div>
-                  <div className="code-blk">{`const reveal = useScrollReveal({\n  threshold: 0.2,\n  once: true,\n});`}</div>
+              )}
+              {messages.map((m) => (
+                <div key={m.id} className="msg">
+                  <div
+                    className="avatar"
+                    style={{ background: m.user.avatarColor }}
+                  >
+                    {m.user.name.slice(0, 1)}
+                  </div>
+                  <div className="msg-body">
+                    <div className="msg-top">
+                      <span className="msg-name">{m.user.name}</span>
+                      <span className="msg-time">
+                        {new Date(m.createdAt).toLocaleString("ko-KR", {
+                          month: "numeric",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <div className="msg-text">{m.content}</div>
+                  </div>
                 </div>
-              </div>
-              <div className="msg">
-                <div className="avatar" style={{ background: "#4f46e5" }}>김</div>
-                <div className="msg-body">
-                  <div className="msg-top"><span className="msg-name">김서연</span><span className="msg-time">오늘 10:31</span></div>
-                  <div className="msg-text">완벽 👍 모바일 GNB만 내일 시안 같이 정하시죠.</div>
-                </div>
-              </div>
+              ))}
             </div>
             <div className="composer">
-              <input className="inp" placeholder="메시지 입력…  @멘션 · 파일첨부 · 코드블록" />
+              <input
+                className="inp"
+                placeholder="메시지 입력…  @멘션 · 파일첨부 · 코드블록"
+              />
               <button className="btn primary sm">전송</button>
             </div>
           </div>
         </div>
 
-        {/* 태스크 보드 — 전체 너비(잘림 방지) */}
+        {/* 태스크 보드 — 전체 너비 */}
         <div className="card" style={{ padding: "16px 18px", marginTop: 18 }}>
-          <div className="sec-title mb16"><span className="em">📋</span> 태스크 보드</div>
-          <div className="kanban">
-            <div className="kcol">
-              <div className="kcol-head">📥 할일 <span className="n">2</span></div>
-              <div className="kcard"><div className="kt">모바일 GNB 시안</div><div className="kf"><span className="pri h">높음</span><span className="dd">6/27</span></div></div>
-              <div className="kcard"><div className="kt">푸터 리디자인</div><div className="kf"><span className="pri l">낮음</span><span className="dd">6/30</span></div></div>
-            </div>
-            <div className="kcol">
-              <div className="kcol-head">🔄 진행중 <span className="n">1</span></div>
-              <div className="kcard"><div className="kt">메인 히어로 개발</div><div className="kf"><span className="pri u">긴급</span><span className="dd">6/26</span></div></div>
-            </div>
-            <div className="kcol">
-              <div className="kcol-head">👀 검토중 <span className="n">1</span></div>
-              <div className="kcard"><div className="kt">소개 페이지 QA</div><div className="kf"><span className="pri m">보통</span><span className="dd">6/28</span></div></div>
-            </div>
-            <div className="kcol">
-              <div className="kcol-head">✅ 완료 <span className="n">1</span></div>
-              <div className="kcard"><div className="kt">디자인 토큰 정리</div><div className="kf"><span className="pri m">보통</span><span className="dd">6/24</span></div></div>
-            </div>
+          <div className="sec-title mb16">
+            <span className="em">📋</span> 태스크 보드
           </div>
-          <div className="hint" style={{ marginTop: 12 }}>↔ 카드를 드래그해 상태를 변경할 수 있어요</div>
+          <div className="kanban">
+            {COLS.map((col) => {
+              const items = colTasks(project.tasks, col.key);
+              return (
+                <div key={col.key} className="kcol">
+                  <div className="kcol-head">
+                    {col.emoji} {col.label} <span className="n">{items.length}</span>
+                  </div>
+                  {items.map((t) => (
+                    <div key={t.id} className="kcard">
+                      <div className="kt">{t.title}</div>
+                      <div className="kf">
+                        <span className={`pri ${PRI[t.priority].cls}`}>
+                          {PRI[t.priority].label}
+                        </span>
+                        {t.dueDate && <span className="dd">{md(t.dueDate)}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+          <div className="hint" style={{ marginTop: 12 }}>
+            ↔ 카드를 드래그해 상태를 변경할 수 있어요 (드래그 연동 예정)
+          </div>
         </div>
       </div>
     </>
