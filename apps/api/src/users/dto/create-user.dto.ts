@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsHexColor,
@@ -33,4 +34,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   statusMessage?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isAdmin?: boolean;
 }
