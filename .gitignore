@@ -9,6 +9,9 @@
 **/dist/
 **/build/
 
+# prisma generated client
+**/generated/
+
 # env
 **/.env
 **/.env.local

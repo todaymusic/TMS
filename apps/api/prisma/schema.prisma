@@ -1,0 +1,228 @@
+// Workly 데이터 모델 — SPEC 4장 기준 (v1.3 반영: subCategory, reportRequired/videoRequired)
+// 용어: 담당자=owner, 참여자=participant, 부여자=assigner, 수행자=assignee
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────── enums ─────────
+enum UserStatus {
+  on // 업무 중
+  away // 자리비움
+  dnd // 방해금지
+  off // 오프라인
+}
+
+enum Category {
+  long // 롱 (긴 업무)
+  shorts // 쇼츠 (짧은 업무)
+  project // 프로젝트
+}
+
+enum Priority {
+  urgent // 긴급
+  high // 높음
+  medium // 보통
+  low // 낮음
+}
+
+enum TaskStatus {
+  todo // 할일
+  doing // 진행중
+  review // 검토중
+  done // 완료
+  completed_pending // 완료(검수 대기)
+}
+
+enum ProjectStatus {
+  active // 진행중
+  archived // 아카이브
+}
+
+enum ProjectRole {
+  lead // 리드
+  design // 디자인
+  dev // 개발
+  etc // 기타
+}
+
+enum LeaveType {
+  annual // 연차
+  half // 반차
+  sick // 병가
+  etc // 기타
+}
+
+enum LeaveStatus {
+  requested
+  approved
+  rejected
+}
+
+// ───────── models ─────────
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  name          String
+  dept          String? // 부서
+  role          String? // 직책
+  avatarColor   String     @default("#4f46e5")
+  status        UserStatus @default(off)
+  statusMessage String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // 관계
+  ownedProjects     ProjectOwner[]
+  joinedProjects    ProjectParticipant[]
+  assignedTasks     Task[]               @relation("assigner")
+  receivedTasks     Task[]               @relation("assignee")
+  messages          Message[]
+  workLogs          WorkLog[]
+  attendances       Attendance[]
+  leaves            Leave[]
+  notifications     Notification[]
+}
+
+model Project {
+  id        String        @id @default(cuid())
+  name      String
+  overview  String? // 한 줄 개요
+  description String?     // 업무 설명
+  startDate DateTime?
+  endDate   DateTime?
+  status    ProjectStatus @default(active)
+  progress  Int           @default(0) // 0~100
+  aiSummary Json? // AI 소통 요약 (핵심결정/진행/미결)
+  links     Json? // 관련 데이터 링크 [{label, url}]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  owners       ProjectOwner[]
+  participants ProjectParticipant[]
+  tasks        Task[]
+  messages     Message[]
+}
+
+// 담당자(owner) — 역할별 책임자
+model ProjectOwner {
+  id        String      @id @default(cuid())
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  user      User        @relation(fields: [userId], references: [id])
+  userId    String
+  role      ProjectRole @default(etc)
+
+  @@unique([projectId, userId])
+}
+
+// 참여자(participant) — 협업 멤버
+model ProjectParticipant {
+  id        String  @id @default(cuid())
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+
+  @@unique([projectId, userId])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  category    Category // 대분류 (long/shorts/project)
+  subCategory String? // 소분류 (업무 영역: 디자인/개발/마케팅...)
+  priority    Priority   @default(medium)
+  status      TaskStatus @default(todo)
+
+  // 산출물 요구 (taskType = report/video/both/none 의 boolean 표현)
+  reportRequired Boolean @default(false)
+  videoRequired  Boolean @default(false)
+  reportLink     String?
+  videoLink      String?
+
+  // 설명 / AI
+  description     String? // 간략 메모
+  descriptionPrompt String? // AI 정리 프롬프트
+  aiDescriptionDoc  String? // AI 생성 업무설명 doc
+
+  dueDate   DateTime?
+  startedAt DateTime?
+  endedAt   DateTime?
+  progress  Int       @default(0)
+
+  // 부여자 / 수행자 / 프로젝트
+  assigner   User?   @relation("assigner", fields: [assignerId], references: [id])
+  assignerId String?
+  assignee   User?   @relation("assignee", fields: [assigneeId], references: [id])
+  assigneeId String?
+  project    Project? @relation(fields: [projectId], references: [id])
+  projectId  String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  workLogs  WorkLog[]
+}
+
+model WorkLog {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id])
+  userId    String
+  task      Task?     @relation(fields: [taskId], references: [id])
+  taskId    String?
+  startedAt DateTime
+  endedAt   DateTime?
+  note      String?
+  createdAt DateTime  @default(now())
+}
+
+model Attendance {
+  id       String    @id @default(cuid())
+  user     User      @relation(fields: [userId], references: [id])
+  userId   String
+  date     DateTime // 날짜(자정 기준)
+  checkIn  DateTime?
+  checkOut DateTime?
+
+  @@unique([userId, date])
+}
+
+model Leave {
+  id        String      @id @default(cuid())
+  user      User        @relation(fields: [userId], references: [id])
+  userId    String
+  type      LeaveType   @default(annual)
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+  status    LeaveStatus @default(requested)
+  createdAt DateTime    @default(now())
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  content   String
+  mentions  Json? // 멘션된 userId 배열
+  reactions Json? // {emoji: [userId]}
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  type      String // mention / task / system
+  content   String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
