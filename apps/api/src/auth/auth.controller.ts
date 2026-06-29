@@ -29,6 +29,15 @@ class SetPasswordDto {
   password!: string;
 }
 
+class ChangePasswordDto {
+  @IsString()
+  currentPassword!: string;
+
+  @IsString()
+  @MinLength(4)
+  newPassword!: string;
+}
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
@@ -48,5 +57,18 @@ export class AuthController {
   @Get('me')
   me(@Req() req: Request & { user?: { id: string } }) {
     return this.auth.me(req.user!.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('change-password')
+  changePassword(
+    @Req() req: Request & { user?: { id: string } },
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.auth.changePassword(
+      req.user!.id,
+      dto.currentPassword,
+      dto.newPassword,
+    );
   }
 }

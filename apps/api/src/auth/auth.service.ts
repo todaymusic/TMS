@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -38,6 +39,25 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('사용자를 찾을 수 없습니다');
     return this.sanitize(user);
+  }
+
+  /** 비밀번호 변경 — 현재 비밀번호 검증 후 교체 (로그인 사용자) */
+  async changePassword(userId: string, current: string, next: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('사용자를 찾을 수 없습니다');
+    if (!user.password) {
+      throw new BadRequestException('비밀번호가 설정되어 있지 않습니다');
+    }
+    const ok = await bcrypt.compare(current, user.password);
+    if (!ok) {
+      throw new UnauthorizedException('현재 비밀번호가 올바르지 않습니다');
+    }
+    const hash = await bcrypt.hash(next, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hash },
+    });
+    return { ok: true };
   }
 
   /**
