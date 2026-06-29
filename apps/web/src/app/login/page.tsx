@@ -5,17 +5,17 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 
 const DEMO = [
-  { name: "마승일", email: "ma.seungil@tms.dev" },
-  { name: "신선중", email: "shin.seonjung@tms.dev" },
-  { name: "왕유림", email: "wang.yurim@tms.dev" },
-  { name: "맹미란", email: "maeng.miran@tms.dev" },
-  { name: "박채원", email: "park.chaewon@tms.dev" },
+  { name: "마승일", email: "ohmusic2024@gmail.com" },
+  { name: "신선중", email: "thedudir@gmail.com" },
+  { name: "왕유림", email: "iamwangskyyy@gmail.com" },
+  { name: "맹미란", email: "maengmiran97@gmail.com" },
+  { name: "박채원", email: "won031204@gmail.com" },
 ];
 
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState("ma.seungil@tms.dev");
+  const [email, setEmail] = useState("ohmusic2024@gmail.com");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
