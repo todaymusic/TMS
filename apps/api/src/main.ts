@@ -18,9 +18,16 @@ async function bootstrap() {
     }),
   );
 
-  // 프론트(Next.js localhost:3000) CORS 허용
+  // CORS: 로컬 + Railway 배포 도메인(*.up.railway.app) + FRONTEND_ORIGIN 허용
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // 서버간 호출/curl
+      const ok =
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+        /\.up\.railway\.app$/.test(origin) ||
+        origin === process.env.FRONTEND_ORIGIN;
+      cb(null, ok);
+    },
     credentials: true,
   });
 
