@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, STATUS_LABEL, type Leave, type LeaveType } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import AdminPanel from "./AdminPanel";
 
 const LEAVE_LABEL: Record<LeaveType, string> = {
   annual: "연차",
@@ -118,6 +119,15 @@ export default function SettingsPage() {
         </div>
       </div>
       <div className="content" style={{ display: "grid", gap: 16, maxWidth: 560 }}>
+        {user?.isAdmin && (
+          <div style={{ display: "grid", gap: 16 }}>
+            <div className="pill teal" style={{ width: "fit-content" }}>
+              👑 관리자 모드
+            </div>
+            <AdminPanel />
+          </div>
+        )}
+
         {/* 내 계정 */}
         <div className="card" style={{ padding: 22 }}>
           <div className="sec-title mb16">

@@ -163,6 +163,7 @@ export type User = {
   avatarColor: string;
   status: UserStatus;
   statusMessage: string | null;
+  isAdmin?: boolean;
 };
 
 // SPEC: 진행률 경과별 색상 코딩 (0⚪ / ~25🔴 / ~50🟠 / ~75🟡 / ~99🔵 / 100🟢)

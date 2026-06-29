@@ -38,6 +38,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* noop */
     }
     setLoading(false);
+    // 토큰 있으면 /auth/me 로 최신 정보 동기화(권한·프로필 변경 반영)
+    if (localStorage.getItem("tms_token")) {
+      api
+        .get<User>("/auth/me")
+        .then((fresh) => {
+          setUser(fresh);
+          localStorage.setItem("tms_user", JSON.stringify(fresh));
+        })
+        .catch(() => {});
+    }
   }, []);
 
   async function login(email: string, password: string) {
