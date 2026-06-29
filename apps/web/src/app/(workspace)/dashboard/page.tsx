@@ -1,7 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { TEAM, STATUS_LABEL, progressColor, type Status } from "@/lib/mock";
+import { useEffect, useState } from "react";
+import {
+  api,
+  progressColor,
+  STATUS_LABEL,
+  type ProjectListItem,
+  type Task,
+  type User,
+  type UserStatus,
+} from "@/lib/api";
 
 // 업무 대분류 (category)
 const CATEGORIES = [
@@ -10,7 +18,6 @@ const CATEGORIES = [
   { key: "project", ic: "📁", label: "프로젝트" },
 ] as const;
 
-// 소분류 (업무 영역) — 프랜차이즈 기업 기준
 const SUBCATS = ["디자인", "개발", "마케팅", "기획", "지점업무", "교육", "운영", "인사·총무"];
 
 const PRIOS = [
@@ -23,87 +30,208 @@ const PRIOS = [
 const DEFAULT_AI_PROMPT = `당신은 업무 정의 어시스턴트입니다. 아래 간략 메모를 바탕으로 담당자가 바로 이해하고 착수할 수 있는 업무설명 문서를 작성하세요.
 출력: 1) 배경/목적  2) 목표(완료기준)  3) 작업범위  4) 요구 산출물  5) 체크포인트/마감`;
 
-const ASSIGNEES = ["김서연", "이준호", "박민지", "최우진"];
-const PRESETS: Status[] = ["on", "away", "dnd", "off"];
+const PRESETS: UserStatus[] = ["on", "away", "dnd", "off"];
 
 export default function DashboardPage() {
+  // 서버 데이터
+  const [users, setUsers] = useState<User[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+
+  // 업무 부여 폼
   const [category, setCategory] = useState<string>("long");
   const [subcat, setSubcat] = useState<string>("디자인");
   const [prio, setPrio] = useState<string>("high");
   const [needReport, setNeedReport] = useState<boolean>(true);
   const [needVideo, setNeedVideo] = useState<boolean>(false);
-  const [assignees, setAssignees] = useState<string[]>(["김서연"]);
+  const [assigneeId, setAssigneeId] = useState<string>("");
+  const [title, setTitle] = useState<string>("");
+  const [dueDate, setDueDate] = useState<string>("");
+  const [projectId, setProjectId] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [aiPrompt, setAiPrompt] = useState<string>(DEFAULT_AI_PROMPT);
   const [showPrompt, setShowPrompt] = useState<boolean>(false);
-  const [myStatus, setMyStatus] = useState<Status>("on");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMsg, setSubmitMsg] = useState<string | null>(null);
 
-  const toggleAssignee = (name: string) =>
-    setAssignees((a) => (a.includes(name) ? a.filter((x) => x !== name) : [...a, name]));
+  const [myStatus, setMyStatus] = useState<UserStatus>("on");
+
+  // 인증 전: 첫 사용자를 "나(부여자)"로 임시 사용
+  const me = users[0];
+
+  async function load() {
+    setLoading(true);
+    setLoadErr(null);
+    try {
+      const [u, t, p] = await Promise.all([
+        api.get<User[]>("/users"),
+        api.get<Task[]>("/tasks"),
+        api.get<ProjectListItem[]>("/projects"),
+      ]);
+      setUsers(u);
+      setTasks(t);
+      setProjects(p);
+      if (!assigneeId && u[0]) setAssigneeId(u[0].id);
+    } catch (e) {
+      setLoadErr(e instanceof Error ? e.message : "불러오기 실패");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isProject = category === "project";
   const outputHint = [
     needReport ? "보고 형식 안내 (예: 주차별 진행률 포함)" : null,
     needVideo ? "영상에 담을 항목 (예: 결과 시연 / 코드 설명)" : null,
-  ].filter(Boolean).join(" · ");
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  // 각 사용자의 현재 진행중(doing) 업무
+  const doingByUser = new Map<string, Task>();
+  for (const t of tasks) {
+    if (t.status === "doing" && t.assignee && !doingByUser.has(t.assignee.id)) {
+      doingByUser.set(t.assignee.id, t);
+    }
+  }
+  const onlineCount = users.filter((u) => u.status !== "off").length;
+
+  async function submitTask() {
+    if (!title.trim()) {
+      setSubmitMsg("제목을 입력하세요");
+      return;
+    }
+    if (!assigneeId) {
+      setSubmitMsg("담당자를 선택하세요");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitMsg(null);
+    try {
+      await api.post<Task>("/tasks", {
+        title: title.trim(),
+        category,
+        subCategory: subcat,
+        priority: prio,
+        reportRequired: needReport,
+        videoRequired: needVideo,
+        assigneeId,
+        assignerId: me?.id,
+        projectId: projectId || undefined,
+        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+        description: description.trim() || undefined,
+      });
+      setSubmitMsg("✅ 업무를 부여했습니다");
+      setTitle("");
+      setDescription("");
+      await load();
+    } catch (e) {
+      setSubmitMsg(e instanceof Error ? e.message : "부여 실패");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <>
       <div className="topbar">
         <div>
           <h1>대시보드</h1>
-          <div className="sub">팀 실시간 현황 · 2026년 6월 26일 금요일</div>
+          <div className="sub">팀 실시간 현황 · 2026년 6월 29일</div>
         </div>
         <div className="topbar-right">
-          <div className="search">🔍<input placeholder="태스크 · 프로젝트 검색" /></div>
-          <div className="avatar" style={{ background: "#4f46e5" }}>나</div>
+          <div className="search">
+            🔍<input placeholder="태스크 · 프로젝트 검색" />
+          </div>
+          <div className="avatar" style={{ background: me?.avatarColor ?? "#4f46e5" }}>
+            {me ? me.name.slice(0, 1) : "나"}
+          </div>
         </div>
       </div>
 
       <div className="content">
+        {loadErr && (
+          <div className="card" style={{ color: "#dc2626", marginBottom: 16 }}>
+            API 오류: {loadErr}
+          </div>
+        )}
         <div className="dash-grid">
           {/* A. 실시간 업무현황 */}
           <div className="card">
             <div className="panel-head">
-              <div className="sec-title"><span className="em">🟢</span> 실시간 업무현황</div>
-              <span className="live"><span className="ping" />LIVE</span>
-              <span className="count">접속 5명</span>
+              <div className="sec-title">
+                <span className="em">🟢</span> 실시간 업무현황
+              </div>
+              <span className="live">
+                <span className="ping" />
+                LIVE
+              </span>
+              <span className="count">접속 {onlineCount}명</span>
             </div>
             <div className="team-grid">
-              {TEAM.map((m) => (
-                <div className="member" key={m.name}>
-                  <div className="member-top">
-                    <div className="member-av">
-                      <div className="avatar" style={{ background: m.color, width: 36, height: 36 }}>{m.name[0]}</div>
-                      <span className={`dot ${m.st}`} />
+              {loading && <div style={{ color: "var(--text-3)", fontSize: 13 }}>불러오는 중…</div>}
+              {!loading &&
+                users.map((m) => {
+                  const task = doingByUser.get(m.id);
+                  const pct = task?.progress ?? 0;
+                  return (
+                    <div className="member" key={m.id}>
+                      <div className="member-top">
+                        <div className="member-av">
+                          <div
+                            className="avatar"
+                            style={{ background: m.avatarColor, width: 36, height: 36 }}
+                          >
+                            {m.name.slice(0, 1)}
+                          </div>
+                          <span className={`dot ${m.status}`} />
+                        </div>
+                        <div>
+                          <div className="member-name">{m.name}</div>
+                          <div className="member-dept">{m.dept ?? ""}</div>
+                        </div>
+                        <span className="pill gray" style={{ marginLeft: "auto" }}>
+                          {task?.project?.name ?? "—"}
+                        </span>
+                      </div>
+                      <div className="member-task">
+                        {m.status === "off"
+                          ? "오프라인"
+                          : task
+                            ? "진행중 · "
+                            : "대기 중"}
+                        <b>{m.status === "off" ? "" : (task?.title ?? "")}</b>
+                      </div>
+                      <div className="member-foot">
+                        <div className="prog" style={{ flex: 1 }}>
+                          <i style={{ width: `${pct}%`, background: progressColor(pct) }} />
+                        </div>
+                        <span className="pct" style={{ color: progressColor(pct) }}>
+                          {pct}%
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <div className="member-name">{m.name}</div>
-                      <div className="member-dept">{m.dept}</div>
-                    </div>
-                    <span className="pill gray" style={{ marginLeft: "auto" }}>{m.proj}</span>
-                  </div>
-                  <div className="member-task">
-                    {m.st === "off" ? "오프라인" : "진행중 · "}
-                    <b>{m.st === "off" ? "" : m.task}</b>
-                  </div>
-                  <div className="member-foot">
-                    <div className="prog" style={{ flex: 1 }}>
-                      <i style={{ width: `${m.pct}%`, background: progressColor(m.pct) }} />
-                    </div>
-                    <span className="pct" style={{ color: progressColor(m.pct) }}>{m.pct}%</span>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
             </div>
           </div>
 
           <div className="dash-right">
             {/* B. 업무 부여 */}
             <div className="card">
-              <div className="panel-head"><div className="sec-title"><span className="em">📋</span> 업무 부여</div></div>
+              <div className="panel-head">
+                <div className="sec-title">
+                  <span className="em">📋</span> 업무 부여
+                </div>
+              </div>
 
-              {/* 1. 업무 대분류 */}
               <div className="assign-field">
                 <label>업무 대분류</label>
                 <div className="cat-row">
@@ -134,11 +262,12 @@ export default function DashboardPage() {
                   >
                     📁 프로젝트는 여기서 바로 부여할 수 없어요. <b>프로젝트 탭에서 먼저 생성</b>하고 담당자/참여자를 추가하세요.
                   </div>
-                  <button className="btn" style={{ width: "100%", marginTop: 8 }}>프로젝트 탭에서 생성하기 →</button>
+                  <a href="/projects" className="btn" style={{ width: "100%", marginTop: 8, display: "block", textAlign: "center" }}>
+                    프로젝트 탭에서 생성하기 →
+                  </a>
                 </div>
               ) : (
                 <>
-                  {/* 2. 소분류 (업무 영역) */}
                   <div className="assign-field">
                     <label>소분류 (업무 영역)</label>
                     <div className="chips">
@@ -154,7 +283,6 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* 3. 우선순위 */}
                   <div className="assign-field">
                     <label>우선순위</label>
                     <div className="prio-row">
@@ -170,7 +298,6 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* 4. 산출물 요구 (체크박스) */}
                   <div className="assign-field">
                     <label>산출물 요구</label>
                     <div className="chk-row">
@@ -185,45 +312,58 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* 5. 담당자 */}
                   <div className="assign-field">
                     <label>담당자</label>
                     <div className="chips">
-                      {ASSIGNEES.map((name) => (
+                      {users.map((u) => (
                         <span
-                          key={name}
-                          className={`chip${assignees.includes(name) ? " on" : ""}`}
-                          onClick={() => toggleAssignee(name)}
+                          key={u.id}
+                          className={`chip${assigneeId === u.id ? " on" : ""}`}
+                          onClick={() => setAssigneeId(u.id)}
                         >
-                          {name}
+                          {u.name}
                         </span>
                       ))}
                     </div>
                   </div>
 
-                  {/* 6. 태스크 제목 */}
                   <div className="assign-field">
                     <label>태스크 제목</label>
-                    <input className="inp" placeholder="예: 6월 신메뉴 포스터 디자인" />
+                    <input
+                      className="inp"
+                      placeholder="예: 6월 신메뉴 포스터 디자인"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
                   </div>
 
-                  {/* 7-8. 마감일 / 프로젝트 */}
                   <div className="assign-field" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div>
                       <label>마감일</label>
-                      <input className="inp" type="date" defaultValue="2026-07-03" />
+                      <input
+                        className="inp"
+                        type="date"
+                        value={dueDate}
+                        onChange={(e) => setDueDate(e.target.value)}
+                      />
                     </div>
                     <div>
                       <label>프로젝트</label>
-                      <select className="inp">
-                        <option>연결 안 함</option>
-                        <option>웹 리뉴얼</option>
-                        <option>앱 v2.0</option>
+                      <select
+                        className="inp"
+                        value={projectId}
+                        onChange={(e) => setProjectId(e.target.value)}
+                      >
+                        <option value="">연결 안 함</option>
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
 
-                  {/* 9. 상세 설명 */}
                   <div className="assign-field">
                     <label>상세 설명 (간략 메모)</label>
                     <textarea
@@ -235,7 +375,6 @@ export default function DashboardPage() {
                     {outputHint && <div className="field-hint">💡 {outputHint}</div>}
                   </div>
 
-                  {/* 10. AI 정리 프롬프트 */}
                   <div className="assign-field">
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                       <label style={{ margin: 0 }}>상세 설명 프롬프트 (AI 정리)</label>
@@ -256,13 +395,28 @@ export default function DashboardPage() {
                         style={{ minHeight: 96 }}
                       />
                     )}
-                    <button type="button" className="btn" style={{ width: "100%", marginTop: 8 }}>
-                      🤖 AI 업무설명 doc 생성
+                    <button type="button" className="btn" style={{ width: "100%", marginTop: 8 }} disabled>
+                      🤖 AI 업무설명 doc 생성 (연동 예정)
                     </button>
                   </div>
 
                   <div className="assign-field">
-                    <button className="btn primary" style={{ width: "100%" }}>태스크 부여하고 알림 보내기</button>
+                    {submitMsg && (
+                      <div
+                        className="field-hint"
+                        style={{ color: submitMsg.startsWith("✅") ? "#16a34a" : "#dc2626" }}
+                      >
+                        {submitMsg}
+                      </div>
+                    )}
+                    <button
+                      className="btn primary"
+                      style={{ width: "100%" }}
+                      onClick={submitTask}
+                      disabled={submitting}
+                    >
+                      {submitting ? "부여 중…" : "태스크 부여하고 알림 보내기"}
+                    </button>
                   </div>
                 </>
               )}
@@ -270,13 +424,27 @@ export default function DashboardPage() {
 
             {/* C. 내 상태 변경 */}
             <div className="card">
-              <div className="panel-head"><div className="sec-title"><span className="em">🎯</span> 내 상태 변경</div></div>
+              <div className="panel-head">
+                <div className="sec-title">
+                  <span className="em">🎯</span> 내 상태 변경
+                </div>
+              </div>
               <div className="status-presets">
                 {PRESETS.map((s) => (
                   <div
                     key={s}
                     className={`preset${myStatus === s ? " on" : ""}`}
-                    onClick={() => setMyStatus(s)}
+                    onClick={async () => {
+                      setMyStatus(s);
+                      if (me) {
+                        try {
+                          await api.patch(`/users/${me.id}`, { status: s });
+                          await load();
+                        } catch {
+                          /* noop */
+                        }
+                      }
+                    }}
                   >
                     <span className={`dot ${s}`} />
                     <span className="nm">{STATUS_LABEL[s]}</span>
