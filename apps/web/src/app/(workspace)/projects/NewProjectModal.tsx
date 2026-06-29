@@ -28,6 +28,27 @@ export default function NewProjectModal() {
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  async function generateDesc() {
+    if (!description.trim()) {
+      setErr("AI 정리할 메모를 업무 설명칸에 먼저 입력하세요");
+      return;
+    }
+    setAiBusy(true);
+    setErr(null);
+    try {
+      const r = await api.post<{ doc: string }>("/ai/task-doc", {
+        memo: description,
+        title: name || undefined,
+      });
+      setDescription(r.doc);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "AI 생성 실패");
+    } finally {
+      setAiBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (open && users.length === 0) {
@@ -224,12 +245,24 @@ export default function NewProjectModal() {
             </div>
 
             <div className="assign-field">
-              <label>업무 설명</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <label style={{ margin: 0 }}>업무 설명</label>
+                <button
+                  type="button"
+                  className="btn sm"
+                  style={{ marginLeft: "auto" }}
+                  onClick={generateDesc}
+                  disabled={aiBusy}
+                >
+                  {aiBusy ? "생성 중…" : "🤖 AI 정리"}
+                </button>
+              </div>
               <textarea
                 className="inp"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="프로젝트 개요·목표"
+                placeholder="메모를 적고 «AI 정리»를 누르면 정돈된 업무 설명으로 바뀝니다"
+                style={{ minHeight: 100 }}
               />
             </div>
 
