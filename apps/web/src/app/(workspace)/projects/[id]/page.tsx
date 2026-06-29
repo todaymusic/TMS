@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AiSummaryCard from "./AiSummaryCard";
 import MembersEditor from "./MembersEditor";
+import ProjectThread from "./ProjectThread";
 import {
   api,
   progressColor,
@@ -222,52 +223,14 @@ export default async function ProjectDetail({
             initial={project.aiSummary as Parameters<typeof AiSummaryCard>[0]["initial"]}
           />
 
-          <div className="card">
-            <div className="panel-head">
-              <div className="sec-title">
-                <span className="em">💬</span> 커뮤니케이션
-              </div>
-              <span className="count">메시지 {messages.length}</span>
-            </div>
-            <div className="thread">
-              {messages.length === 0 && (
-                <div style={{ color: "var(--text-3)", fontSize: 13, padding: 8 }}>
-                  아직 메시지가 없습니다. 첫 메시지를 남겨보세요.
-                </div>
-              )}
-              {messages.map((m) => (
-                <div key={m.id} className="msg">
-                  <div
-                    className="avatar"
-                    style={{ background: m.user.avatarColor }}
-                  >
-                    {m.user.name.slice(0, 1)}
-                  </div>
-                  <div className="msg-body">
-                    <div className="msg-top">
-                      <span className="msg-name">{m.user.name}</span>
-                      <span className="msg-time">
-                        {new Date(m.createdAt).toLocaleString("ko-KR", {
-                          month: "numeric",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                    <div className="msg-text">{m.content}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="composer">
-              <input
-                className="inp"
-                placeholder="메시지 입력…  @멘션 · 파일첨부 · 코드블록"
-              />
-              <button className="btn primary sm">전송</button>
-            </div>
-          </div>
+          <ProjectThread
+            projectId={project.id}
+            initial={messages}
+            members={[...project.owners, ...project.participants].map((m) => ({
+              id: m.user.id,
+              name: m.user.name,
+            }))}
+          />
         </div>
 
         {/* 태스크 보드 — 전체 너비 */}
