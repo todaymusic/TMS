@@ -102,8 +102,10 @@ export type Task = {
   statusMemo: string | null;
   dueDate: string | null;
   plannedDate?: string | null;
+  acceptedAt?: string | null;
   startedAt?: string | null;
   endedAt?: string | null;
+  createdAt?: string;
   progress: number;
   assigner: UserBrief | null;
   assignee: UserBrief | null;

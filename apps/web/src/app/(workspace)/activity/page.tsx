@@ -18,6 +18,11 @@ const PRI: Record<Priority, { label: string; bg: string; fg: string }> = {
 function ymd(d: Date) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
+function mdd(s?: string | null) {
+  if (!s) return "";
+  const d = new Date(s);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
 
 const LEAVE_KO: Record<string, string> = {
   annual: "연차",
@@ -165,6 +170,16 @@ function ActivityInner() {
     }
   }
 
+  async function accept(id: string) {
+    setBusy(id);
+    try {
+      await api.post(`/tasks/${id}/accept`, {});
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // '오늘 하기' 토글 (plannedDate=오늘 / 해제)
   async function planToday(id: string, on: boolean) {
     setBusy(id);
@@ -219,6 +234,8 @@ function ActivityInner() {
   // 오늘의 업무 = 오늘로 옮긴 것 + 마감 D-3이내/지난 미완료(자동) + 진행중. 마감 급한 순.
   const dayTasks = tasks
     .filter((t) => {
+      // 남이 요청한 업무는 수락 전엔 오늘의 업무에서 제외
+      if (t.assigner && t.assigner.id !== targetId && !t.acceptedAt) return false;
       const planned = t.plannedDate && ymd(new Date(t.plannedDate)) === selKey;
       if (dayOffset === 0) {
         return (
@@ -344,7 +361,7 @@ function ActivityInner() {
           {/* 🙋 내가 나에게 부여 */}
           <div className="card">
             <div className="panel-head">
-              <div className="sec-title"><span className="em">🙋</span> {isSelf ? "내가 나에게" : "본인에게"} 부여한 업무</div>
+              <div className="sec-title"><span className="em">🙋</span> 나의 업무</div>
               <span className="count" style={{ marginLeft: "auto" }}>{assignedSelf.length}</span>
             </div>
             <div style={{ padding: "6px 14px 14px", display: "grid", gap: 6 }}>
@@ -372,7 +389,7 @@ function ActivityInner() {
           {/* 📤 남에게 부여 */}
           <div className="card">
             <div className="panel-head">
-              <div className="sec-title"><span className="em">📤</span> {isSelf ? "남에게" : `${targetName || "이 사람"}이 남에게`} 부여한 업무</div>
+              <div className="sec-title"><span className="em">📤</span> 요청한 업무</div>
               <span className="count" style={{ marginLeft: "auto" }}>{assignedOut.length}</span>
             </div>
             <div style={{ padding: "6px 14px 14px", display: "grid", gap: 6 }}>
@@ -380,15 +397,26 @@ function ActivityInner() {
                 <div style={{ color: "var(--text-3)", fontSize: 13 }}>대시보드 → 업무 부여로 추가</div>
               )}
               {assignedOut.map((t) => (
-                <div key={t.id} onClick={() => setDetailId(t.id)} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8 }}>
+                <div key={t.id} onClick={() => setDetailId(t.id)} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8, flexWrap: "wrap" }}>
                   <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>{PRI[t.priority].label}</span>
-                  <span style={{ flex: 1 }}>{t.title}</span>
+                  <span style={{ flex: 1, minWidth: 80 }}>
+                    {t.project && <span style={{ color: "var(--text-3)", fontSize: 11.5 }}>({t.project.name}) </span>}
+                    {t.title}
+                  </span>
                   <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-2)" }}>
                     <span className="avatar" style={{ background: t.assignee?.avatarColor ?? "#999", width: 20, height: 20, fontSize: 10 }}>{t.assignee?.name?.slice(0, 1) ?? "?"}</span>
                     {t.assignee?.name ?? "미지정"}
                   </span>
+                  {t.acceptedAt ? (
+                    <span className="pill" style={{ background: "#dcfce7", color: "#15803d", fontSize: 10 }}>수락 {mdd(t.acceptedAt)}</span>
+                  ) : (
+                    <span className="pill" style={{ background: "#fef9c3", color: "#a16207", fontSize: 10 }}>수락대기</span>
+                  )}
                   <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
                   <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
+                  {t.statusMemo && (
+                    <div style={{ flexBasis: "100%", fontSize: 11.5, color: "var(--text-3)", paddingLeft: 2 }}>📝 {t.statusMemo}</div>
+                  )}
                 </div>
               ))}
             </div>
@@ -397,7 +425,7 @@ function ActivityInner() {
           {/* 📥 남이 나에게 부여한 업무 */}
           <div className="card">
             <div className="panel-head">
-              <div className="sec-title"><span className="em">📥</span> {isSelf ? "남이 나에게" : "남이 이 사람에게"} 부여한 업무</div>
+              <div className="sec-title"><span className="em">📥</span> 요청받은 업무</div>
               <span className="count" style={{ marginLeft: "auto" }}>{fromOthers.length}</span>
             </div>
             <div style={{ padding: "6px 14px 14px", display: "grid", gap: 6 }}>
@@ -405,21 +433,34 @@ function ActivityInner() {
                 <div style={{ color: "var(--text-3)", fontSize: 13 }}>없음</div>
               )}
               {fromOthers.map((t) => (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8 }}>
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8, flexWrap: "wrap" }}>
                   <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>{PRI[t.priority].label}</span>
-                  <span style={{ flex: 1, cursor: "pointer" }} onClick={() => setDetailId(t.id)}>
+                  <span style={{ flex: 1, minWidth: 80, cursor: "pointer" }} onClick={() => setDetailId(t.id)}>
                     {t.project && <span style={{ color: "var(--text-3)", fontSize: 11.5 }}>({t.project.name}) </span>}
                     {t.title}
                   </span>
-                  <span style={{ fontSize: 11, color: "var(--text-3)" }}>{t.assigner?.name}↗</span>
-                  <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
-                  <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
-                  {isSelf && stateOf(t) !== "done" && (
-                    isPlannedToday(t) ? (
-                      <button className="btn sm" onClick={() => planToday(t.id, false)} disabled={busy === t.id}>오늘 빼기</button>
+                  <span style={{ fontSize: 11, color: "var(--text-3)" }} title="요청자 · 요청일">
+                    {t.assigner?.name} · {mdd(t.createdAt)}
+                  </span>
+                  {!t.acceptedAt ? (
+                    isSelf ? (
+                      <button className="btn primary sm" onClick={() => accept(t.id)} disabled={busy === t.id}>수락</button>
                     ) : (
-                      <button className="btn sm" onClick={() => planToday(t.id, true)} disabled={busy === t.id}>↓ 오늘 하기</button>
+                      <span className="pill" style={{ background: "#fef9c3", color: "#a16207", fontSize: 10 }}>수락대기</span>
                     )
+                  ) : (
+                    <>
+                      <span className="pill" style={{ background: "#dcfce7", color: "#15803d", fontSize: 10 }}>수락 {mdd(t.acceptedAt)}</span>
+                      <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
+                      <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
+                      {isSelf && stateOf(t) !== "done" && (
+                        isPlannedToday(t) ? (
+                          <button className="btn sm" onClick={() => planToday(t.id, false)} disabled={busy === t.id}>오늘 빼기</button>
+                        ) : (
+                          <button className="btn sm" onClick={() => planToday(t.id, true)} disabled={busy === t.id}>↓ 오늘 하기</button>
+                        )
+                      )}
+                    </>
                   )}
                 </div>
               ))}
