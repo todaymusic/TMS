@@ -42,13 +42,6 @@ const FEED_IC: Record<string, { cls: string; ic: string }> = {
   system: { cls: "sys", ic: "⚠️" },
 };
 
-function hm(d: string | null): string {
-  if (!d) return "";
-  return new Date(d).toLocaleTimeString("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function ago(d: string): string {
   const diff = Date.now() - new Date(d).getTime();
@@ -131,6 +124,24 @@ function ActivityInner() {
       setBusy(null);
     }
   }
+  async function pause(id: string) {
+    setBusy(id);
+    try {
+      await api.post(`/tasks/${id}/pause`, {});
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function resume(id: string) {
+    setBusy(id);
+    try {
+      await api.post(`/tasks/${id}/resume`, {});
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
   function openEnd(t: Task) {
     setEndTask(t);
     setEndReport(t.reportLink ?? "");
@@ -187,7 +198,7 @@ function ActivityInner() {
   const stateOf = (t: Task): "todo" | "doing" | "done" =>
     t.status === "done" || t.status === "completed_pending"
       ? "done"
-      : t.status === "doing"
+      : t.status === "doing" || t.status === "paused"
         ? "doing"
         : "todo";
 
@@ -470,26 +481,33 @@ function ActivityInner() {
                       </span>
                       <span className={`ct${st === "done" ? " s" : ""}`}>{it.title}</span>
                       <span className="meta">{output}</span>
-                      {isSelf && st === "todo" && (
-                        <button
-                          className="btn sm"
-                          onClick={(e) => { e.stopPropagation(); start(it.id); }}
-                          disabled={busy === it.id}
-                        >
+                      {isSelf && it.status === "todo" && (
+                        <button className="btn sm" onClick={(e) => { e.stopPropagation(); start(it.id); }} disabled={busy === it.id}>
                           시작
                         </button>
                       )}
-                      {st === "doing" && (
+                      {it.status === "doing" && isSelf && (
                         <>
-                          <span className="meta">⏱ {hm(it.dueDate)}</span>
-                          {isSelf && (
-                          <button
-                            className="btn sm"
-                            onClick={(e) => { e.stopPropagation(); openEnd(it); }}
-                            disabled={busy === it.id}
-                          >
+                          <button className="btn sm" onClick={(e) => { e.stopPropagation(); pause(it.id); }} disabled={busy === it.id}>
+                            ⏸ 중단
+                          </button>
+                          <button className="btn sm" onClick={(e) => { e.stopPropagation(); openEnd(it); }} disabled={busy === it.id}>
                             종료
                           </button>
+                        </>
+                      )}
+                      {it.status === "paused" && (
+                        <>
+                          <span className="pill" style={{ background: "#fef3c7", color: "#a16207", fontSize: 10 }}>중단됨</span>
+                          {isSelf && (
+                            <>
+                              <button className="btn sm" onClick={(e) => { e.stopPropagation(); resume(it.id); }} disabled={busy === it.id}>
+                                ▶ 재개
+                              </button>
+                              <button className="btn sm" onClick={(e) => { e.stopPropagation(); openEnd(it); }} disabled={busy === it.id}>
+                                종료
+                              </button>
+                            </>
                           )}
                         </>
                       )}

@@ -12,6 +12,7 @@ const PRI_LABEL: Record<Priority, string> = {
 const STATUS_LABEL: Record<TaskStatus, string> = {
   todo: "할일",
   doing: "진행중",
+  paused: "중단",
   review: "검토중",
   done: "완료",
   completed_pending: "완료(검수대기)",
@@ -33,6 +34,19 @@ export default function TaskDetailModal({
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [bigEdit, setBigEdit] = useState(false);
+  const [docSaved, setDocSaved] = useState(false);
+
+  async function saveDocOnly() {
+    setBusy(true);
+    try {
+      await api.patch(`/tasks/${taskId}`, { aiDescriptionDoc: doc.trim() || undefined });
+      setDocSaved(true);
+      setTimeout(() => setDocSaved(false), 2000);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
@@ -116,6 +130,35 @@ export default function TaskDetailModal({
   const ro = readOnly;
 
   return (
+    <>
+    {bigEdit && (
+      <div
+        style={{ position: "fixed", inset: 0, background: "var(--surface,#fff)", zIndex: 60, display: "flex", flexDirection: "column", padding: 20 }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div className="sec-title"><span className="em">🤖</span> 업무설명 doc — {task?.title}</div>
+          <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+            {docSaved && <span style={{ color: "#16a34a", fontSize: 13 }}>✅ 저장됨</span>}
+            {!ro && (
+              <button className="btn primary" onClick={saveDocOnly} disabled={busy}>저장</button>
+            )}
+            <button className="btn" onClick={() => setBigEdit(false)}>닫기</button>
+          </span>
+        </div>
+        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, minHeight: 0 }}>
+          <textarea
+            value={doc}
+            onChange={(e) => setDoc(e.target.value)}
+            disabled={ro}
+            placeholder="업무설명 doc (마크다운). 자유롭게 수정하세요."
+            style={{ width: "100%", height: "100%", resize: "none", padding: 16, fontSize: 14, lineHeight: 1.7, border: "1px solid var(--border)", borderRadius: 10, fontFamily: "inherit" }}
+          />
+          <div style={{ overflow: "auto", padding: 16, border: "1px solid var(--border)", borderRadius: 10, background: "var(--surface-2,#fafafa)", whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.8 }}>
+            {doc || <span style={{ color: "var(--text-3)" }}>미리보기</span>}
+          </div>
+        </div>
+      </div>
+    )}
     <div
       onClick={() => !busy && onClose()}
       style={{
@@ -164,7 +207,7 @@ export default function TaskDetailModal({
               <div>
                 <label>상태</label>
                 <select className="inp" value={status} onChange={(e) => setStatus(e.target.value as TaskStatus)} disabled={ro}>
-                  {(["todo", "doing", "review", "done"] as TaskStatus[]).map((s) => (
+                  {(["todo", "doing", "paused", "review", "done"] as TaskStatus[]).map((s) => (
                     <option key={s} value={s}>{STATUS_LABEL[s]}</option>
                   ))}
                 </select>
@@ -224,10 +267,13 @@ export default function TaskDetailModal({
             </div>
 
             <div className="assign-field">
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                 <label style={{ margin: 0 }}>🤖 AI 업무설명 doc</label>
+                <button type="button" className="btn sm" style={{ marginLeft: "auto" }} onClick={() => setBigEdit(true)}>
+                  ⛶ 새 창에서 보기/편집
+                </button>
                 {!ro && (
-                  <button type="button" className="btn sm" style={{ marginLeft: "auto" }} onClick={regenerateDoc} disabled={aiBusy}>
+                  <button type="button" className="btn sm" onClick={regenerateDoc} disabled={aiBusy}>
                     {aiBusy ? "생성 중…" : "AI 재생성"}
                   </button>
                 )}
@@ -258,5 +304,6 @@ export default function TaskDetailModal({
         )}
       </div>
     </div>
+    </>
   );
 }

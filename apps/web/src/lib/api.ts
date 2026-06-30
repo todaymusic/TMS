@@ -52,6 +52,7 @@ export type Priority = 'urgent' | 'high' | 'medium' | 'low';
 export type TaskStatus =
   | 'todo'
   | 'doing'
+  | 'paused'
   | 'review'
   | 'done'
   | 'completed_pending';
