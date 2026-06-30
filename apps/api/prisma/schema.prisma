@@ -206,6 +206,7 @@ model Task {
 
   dueDate     DateTime?
   plannedDate DateTime? // '오늘 하기'로 옮긴 날(오늘의 업무에 표시)
+  acceptedAt  DateTime? // 요청받은 업무 수락 시각(수락해야 진행 가능)
   startedAt   DateTime?
   endedAt     DateTime?
   progress    Int       @default(0)

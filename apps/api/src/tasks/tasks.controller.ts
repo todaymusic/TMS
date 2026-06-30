@@ -44,6 +44,12 @@ export class TasksController {
     return this.tasks.start(id);
   }
 
+  // 요청받은 업무 수락
+  @Post(':id/accept')
+  accept(@Param('id') id: string) {
+    return this.tasks.accept(id);
+  }
+
   // 잠시 중단 / 재개 (세션 시간 기록)
   @Post(':id/pause')
   pause(@Param('id') id: string) {

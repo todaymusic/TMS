@@ -81,10 +81,35 @@ export class TasksService {
    * 업무 시작 — 내 활동 체크리스트 체크 시.
    * startedAt 기록, status=doing, 열린 WorkLog 생성(대시보드/근무로그 연동).
    */
+  /** 요청받은 업무 수락 — acceptedAt 기록, 요청자에게 알림 */
+  async accept(id: string) {
+    const task = await this.findOne(id);
+    const now = new Date();
+    const updated = await this.prisma.task.update({
+      where: { id },
+      data: { acceptedAt: task.acceptedAt ?? now },
+      include: taskInclude,
+    });
+    if (task.assignerId && task.assignerId !== task.assigneeId) {
+      await this.prisma.notification.create({
+        data: {
+          userId: task.assignerId,
+          type: 'task',
+          content: `${updated.assignee?.name ?? '담당자'}님이 «${task.title}» 업무를 수락했습니다`,
+          link: '/activity',
+        },
+      });
+    }
+    return updated;
+  }
+
   async start(id: string) {
     const task = await this.findOne(id);
     if (!task.assigneeId)
       throw new BadRequestException('수행자(assignee)가 지정되지 않은 업무는 시작할 수 없습니다');
+    // 남이 요청한 업무는 수락해야 시작 가능
+    if (task.assignerId && task.assignerId !== task.assigneeId && !task.acceptedAt)
+      throw new BadRequestException('먼저 업무를 수락해주세요');
 
     const now = new Date();
     const [updated] = await this.prisma.$transaction([
@@ -154,7 +179,7 @@ export class TasksService {
       data: { endedAt: now, note: dto.note },
     });
 
-    return this.prisma.task.update({
+    const updated = await this.prisma.task.update({
       where: { id },
       data: {
         status: TaskStatus.done,
@@ -165,5 +190,17 @@ export class TasksService {
       },
       include: taskInclude,
     });
+    // 요청자에게 완료 알림
+    if (task.assignerId && task.assignerId !== task.assigneeId) {
+      await this.prisma.notification.create({
+        data: {
+          userId: task.assignerId,
+          type: 'task',
+          content: `✅ ${updated.assignee?.name ?? '담당자'}님이 «${task.title}» 업무를 완료했습니다 — 검수해주세요`,
+          link: '/activity',
+        },
+      });
+    }
+    return updated;
   }
 }
