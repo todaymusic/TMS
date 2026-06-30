@@ -47,6 +47,7 @@ export default function CalendarPage() {
   const [leaves, setLeaves] = useState<LeaveCal[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<"task" | "work">("task");
+  const [q, setQ] = useState("");
   // 표시 월 (기준: 2026-06)
   const [ym, setYm] = useState<{ y: number; m: number }>({ y: 2026, m: 5 }); // m: 0-based
 
@@ -79,10 +80,17 @@ export default function CalendarPage() {
     const offset = (firstDay + 6) % 7; // 월요일 시작
     const days = new Date(y, m + 1, 0).getDate();
 
-    // 업무: 마감일에 표시
+    // 업무: 마감일에 표시 (검색어로 필터)
+    const term = q.trim().toLowerCase();
     const taskByDay = new Map<number, Task[]>();
     for (const t of tasks) {
       if (!t.dueDate) continue;
+      if (
+        term &&
+        !t.title.toLowerCase().includes(term) &&
+        !(t.assignee?.name.toLowerCase().includes(term) ?? false)
+      )
+        continue;
       const d = new Date(t.dueDate);
       if (d.getFullYear() === y && d.getMonth() === m) {
         const day = d.getDate();
@@ -111,7 +119,7 @@ export default function CalendarPage() {
     while (cells.length % 7 !== 0) cells.push({ day: null, tasks: [], leaves: [] });
 
     return { cells, monthLabel: `${y}년 ${m + 1}월` };
-  }, [ym, tasks, leaves]);
+  }, [ym, tasks, leaves, q]);
 
   // 간트: 전체 프로젝트 기간 범위에 맞춰 막대 배치
   const gantt = useMemo(() => {
@@ -185,9 +193,21 @@ export default function CalendarPage() {
             <button onClick={() => move(1)}>▶</button>
           </div>
           <div className="cal-month">{monthLabel}</div>
-          <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>
-            {tab === "task" ? "마감일 기준 업무 표시" : "연차·휴가 기간 표시"}
-          </div>
+          {tab === "task" ? (
+            <div style={{ marginLeft: "auto" }} className="search">
+              🔍
+              <input
+                placeholder="업무·담당자 검색"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                style={{ width: 200 }}
+              />
+            </div>
+          ) : (
+            <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>
+              연차·휴가 기간 표시
+            </div>
+          )}
         </div>
 
         <div className="cal-grid">

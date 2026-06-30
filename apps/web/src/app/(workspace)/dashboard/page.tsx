@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   api,
   progressColor,
@@ -60,6 +61,8 @@ export default function DashboardPage() {
   const [aiBusy, setAiBusy] = useState(false);
 
   const [myStatus, setMyStatus] = useState<UserStatus>("on");
+  const [q, setQ] = useState("");
+  const router = useRouter();
 
   // 로그인한 사용자 = "나(부여자)"
   const { user: me } = useAuth();
@@ -105,6 +108,23 @@ export default function DashboardPage() {
     }
   }
   const onlineCount = users.filter((u) => u.status !== "off").length;
+
+  // 검색: 프로젝트명 / 태스크 제목·업무영역
+  const search = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return { projects: [], tasks: [] };
+    return {
+      projects: projects.filter((p) => p.name.toLowerCase().includes(term)).slice(0, 5),
+      tasks: tasks
+        .filter(
+          (t) =>
+            t.title.toLowerCase().includes(term) ||
+            (t.subCategory?.toLowerCase().includes(term) ?? false),
+        )
+        .slice(0, 8),
+    };
+  }, [q, projects, tasks]);
+  const hasResults = search.projects.length > 0 || search.tasks.length > 0;
 
   async function generateDoc() {
     if (!description.trim()) {
@@ -175,8 +195,74 @@ export default function DashboardPage() {
           <div className="sub">팀 실시간 현황 · 2026년 6월 29일</div>
         </div>
         <div className="topbar-right">
-          <div className="search">
-            🔍<input placeholder="태스크 · 프로젝트 검색" />
+          <div className="search" style={{ position: "relative" }}>
+            🔍
+            <input
+              placeholder="태스크 · 프로젝트 검색"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+            {q.trim() && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  width: 320,
+                  maxHeight: 360,
+                  overflow: "auto",
+                  background: "var(--surface, #fff)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                  zIndex: 40,
+                  padding: 6,
+                }}
+              >
+                {!hasResults && (
+                  <div style={{ padding: 12, fontSize: 13, color: "var(--text-3)" }}>
+                    검색 결과가 없어요.
+                  </div>
+                )}
+                {search.projects.map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => {
+                      router.push(`/projects/${p.id}`);
+                      setQ("");
+                    }}
+                    style={{ padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13.5 }}
+                  >
+                    📁 {p.name}
+                  </div>
+                ))}
+                {search.tasks.map((t) => (
+                  <div
+                    key={t.id}
+                    onClick={() => {
+                      if (t.project) router.push(`/projects/${t.project.id}`);
+                      setQ("");
+                    }}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: 6,
+                      cursor: t.project ? "pointer" : "default",
+                      fontSize: 13.5,
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                    }}
+                  >
+                    📋 {t.title}
+                    {t.project && (
+                      <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-3)" }}>
+                        {t.project.name}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="avatar" style={{ background: me?.avatarColor ?? "#4f46e5" }}>
             {me ? me.name.slice(0, 1) : "나"}
