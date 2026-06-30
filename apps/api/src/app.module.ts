@@ -5,7 +5,7 @@ import { AppService } from './app.service';
 import { AttendanceModule } from './attendance/attendance.module';
 import { AiModule } from './ai/ai.module';
 import { AuthModule } from './auth/auth.module';
-import { DmModule } from './dm/dm.module';
+import { ChatModule } from './chat/chat.module';
 import { LeavesModule } from './leaves/leaves.module';
 import { MessagesModule } from './messages/messages.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -29,7 +29,7 @@ import { WorkLogsModule } from './worklogs/worklogs.module';
     AttendanceModule,
     LeavesModule,
     NotificationsModule,
-    DmModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
