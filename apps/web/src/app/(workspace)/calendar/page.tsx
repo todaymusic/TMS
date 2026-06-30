@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api, type ProjectListItem, type Task } from "@/lib/api";
+import {
+  api,
+  type Leave,
+  type LeaveType,
+  type ProjectListItem,
+  type Task,
+} from "@/lib/api";
 
 const DOWS = ["월", "화", "수", "목", "금", "토", "일"];
 
@@ -11,6 +17,20 @@ const EV_STYLE: Record<EvKind, React.CSSProperties> = {
   prog: { background: "#dbeafe", color: "#1d4ed8" },
   late: { background: "#fee2e2", color: "#b91c1c" },
 };
+
+type LeaveCal = Leave & { user: { id: string; name: string; avatarColor: string } };
+const LEAVE_LABEL: Record<LeaveType, string> = {
+  annual: "연차",
+  half: "반차",
+  sick: "병가",
+  etc: "기타",
+};
+// 상태별 색 (승인=초록 / 신청=노랑 / 반려=회색)
+function leaveStyle(s: Leave["status"]): React.CSSProperties {
+  if (s === "approved") return { background: "#dcfce7", color: "#15803d" };
+  if (s === "rejected") return { background: "#f3f4f6", color: "#6b7280" };
+  return { background: "#fef9c3", color: "#a16207" };
+}
 
 const GANTT_COLORS = ["#4f46e5", "#0f766e", "#db2777", "#ea580c", "#0891b2"];
 
@@ -23,19 +43,23 @@ function evKind(t: Task, today: Date): EvKind {
 export default function CalendarPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [leaves, setLeaves] = useState<LeaveCal[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [tab, setTab] = useState<"task" | "work">("task");
   // 표시 월 (기준: 2026-06)
   const [ym, setYm] = useState<{ y: number; m: number }>({ y: 2026, m: 5 }); // m: 0-based
 
   useEffect(() => {
     (async () => {
       try {
-        const [t, p] = await Promise.all([
+        const [t, p, l] = await Promise.all([
           api.get<Task[]>("/tasks"),
           api.get<ProjectListItem[]>("/projects"),
+          api.get<LeaveCal[]>("/leaves"),
         ]);
         setTasks(t);
         setProjects(p);
+        setLeaves(l);
       } catch (e) {
         setErr(e instanceof Error ? e.message : "불러오기 실패");
       }
@@ -54,24 +78,39 @@ export default function CalendarPage() {
     const offset = (firstDay + 6) % 7; // 월요일 시작
     const days = new Date(y, m + 1, 0).getDate();
 
-    // 일자별 이벤트
-    const byDay = new Map<number, Task[]>();
+    // 업무: 마감일에 표시
+    const taskByDay = new Map<number, Task[]>();
     for (const t of tasks) {
       if (!t.dueDate) continue;
       const d = new Date(t.dueDate);
       if (d.getFullYear() === y && d.getMonth() === m) {
         const day = d.getDate();
-        byDay.set(day, [...(byDay.get(day) ?? []), t]);
+        taskByDay.set(day, [...(taskByDay.get(day) ?? []), t]);
       }
     }
 
-    const cells: { day: number | null; tasks: Task[] }[] = [];
-    for (let i = 0; i < offset; i++) cells.push({ day: null, tasks: [] });
-    for (let d = 1; d <= days; d++) cells.push({ day: d, tasks: byDay.get(d) ?? [] });
-    while (cells.length % 7 !== 0) cells.push({ day: null, tasks: [] });
+    // 근무(연차): 시작~종료 기간 전체 날짜에 표시
+    const leaveByDay = new Map<number, LeaveCal[]>();
+    for (const lv of leaves) {
+      const s = new Date(lv.startDate);
+      const e = new Date(lv.endDate);
+      for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+        if (d.getFullYear() === y && d.getMonth() === m) {
+          const day = d.getDate();
+          leaveByDay.set(day, [...(leaveByDay.get(day) ?? []), lv]);
+        }
+      }
+    }
+
+    type Cell = { day: number | null; tasks: Task[]; leaves: LeaveCal[] };
+    const cells: Cell[] = [];
+    for (let i = 0; i < offset; i++) cells.push({ day: null, tasks: [], leaves: [] });
+    for (let d = 1; d <= days; d++)
+      cells.push({ day: d, tasks: taskByDay.get(d) ?? [], leaves: leaveByDay.get(d) ?? [] });
+    while (cells.length % 7 !== 0) cells.push({ day: null, tasks: [], leaves: [] });
 
     return { cells, monthLabel: `${y}년 ${m + 1}월` };
-  }, [ym, tasks]);
+  }, [ym, tasks, leaves]);
 
   // 간트: 전체 프로젝트 기간 범위에 맞춰 막대 배치
   const gantt = useMemo(() => {
@@ -129,18 +168,24 @@ export default function CalendarPage() {
             API 오류: {err}
           </div>
         )}
+        {/* 탭: 업무 / 근무 */}
+        <div className="cat-row" style={{ marginBottom: 14, maxWidth: 240 }}>
+          <div className={`cat${tab === "task" ? " on" : ""}`} onClick={() => setTab("task")}>
+            📋 업무
+          </div>
+          <div className={`cat${tab === "work" ? " on" : ""}`} onClick={() => setTab("work")}>
+            🌴 근무
+          </div>
+        </div>
+
         <div className="cal-head">
           <div className="cal-nav">
             <button onClick={() => move(-1)}>◀</button>
             <button onClick={() => move(1)}>▶</button>
           </div>
           <div className="cal-month">{monthLabel}</div>
-          <div style={{ marginLeft: "auto" }} className="search">
-            🔍
-            <input
-              placeholder="이전 태스크 검색 (담당자·상태·기간)"
-              style={{ width: 240 }}
-            />
+          <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>
+            {tab === "task" ? "마감일 기준 업무 표시" : "연차·휴가 기간 표시"}
           </div>
         </div>
 
@@ -161,19 +206,26 @@ export default function CalendarPage() {
                 }`}
               >
                 <div className="cal-num">{c.day}</div>
-                {c.tasks.map((t) => {
-                  const k = evKind(t, today);
-                  return (
-                    <div key={t.id} className="cal-ev" style={EV_STYLE[k]}>
-                      {(t.assignee?.name?.slice(0, 1) ?? "") + ":" + t.title}
-                    </div>
-                  );
-                })}
+                {tab === "task"
+                  ? c.tasks.map((t) => {
+                      const k = evKind(t, today);
+                      return (
+                        <div key={t.id} className="cal-ev" style={EV_STYLE[k]}>
+                          {(t.assignee?.name?.slice(0, 1) ?? "") + ":" + t.title}
+                        </div>
+                      );
+                    })
+                  : c.leaves.map((lv) => (
+                      <div key={lv.id} className="cal-ev" style={leaveStyle(lv.status)}>
+                        {lv.user.name} {LEAVE_LABEL[lv.type]}
+                      </div>
+                    ))}
               </div>
             ),
           )}
         </div>
 
+        {tab === "task" && (
         <div className="card gantt">
           <div className="sec-title mb16">
             <span className="em">📊</span> 프로젝트 타임라인
@@ -206,6 +258,7 @@ export default function CalendarPage() {
             </div>
           ))}
         </div>
+        )}
       </div>
     </>
   );
