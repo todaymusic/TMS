@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { LeaveStatus, LeaveType } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLeaveDto } from './dto/create-leave.dto';
@@ -65,6 +69,29 @@ export class LeavesService {
       }),
     ]);
     return updated;
+  }
+
+  // 승인된 휴가 취소 요청(본인) — 관리자 확인 대기
+  async requestCancel(id: string) {
+    const leave = await this.prisma.leave.findUnique({ where: { id } });
+    if (!leave) throw new NotFoundException(`Leave ${id} not found`);
+    if (leave.status !== LeaveStatus.approved) {
+      throw new BadRequestException('승인된 휴가만 취소 요청할 수 있습니다');
+    }
+    return this.prisma.leave.update({
+      where: { id },
+      data: { cancelRequested: true },
+    });
+  }
+
+  // 취소 요청 거절(관리자) — 플래그 해제
+  async denyCancel(id: string) {
+    const leave = await this.prisma.leave.findUnique({ where: { id } });
+    if (!leave) throw new NotFoundException(`Leave ${id} not found`);
+    return this.prisma.leave.update({
+      where: { id },
+      data: { cancelRequested: false },
+    });
   }
 
   async remove(id: string) {

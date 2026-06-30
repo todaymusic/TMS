@@ -36,6 +36,18 @@ export class LeavesController {
     return this.leaves.updateStatus(id, dto);
   }
 
+  // 본인: 승인된 휴가 취소 요청
+  @Patch(':id/request-cancel')
+  requestCancel(@Param('id') id: string) {
+    return this.leaves.requestCancel(id);
+  }
+
+  // 관리자: 취소 요청 거절(플래그 해제)
+  @Patch(':id/deny-cancel')
+  denyCancel(@Param('id') id: string) {
+    return this.leaves.denyCancel(id);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.leaves.remove(id);

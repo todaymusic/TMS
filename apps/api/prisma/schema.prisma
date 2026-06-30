@@ -199,15 +199,16 @@ model Attendance {
 }
 
 model Leave {
-  id        String      @id @default(cuid())
-  user      User        @relation(fields: [userId], references: [id])
-  userId    String
-  type      LeaveType   @default(annual)
-  startDate DateTime
-  endDate   DateTime
-  reason    String?
-  status    LeaveStatus @default(requested)
-  createdAt DateTime    @default(now())
+  id              String      @id @default(cuid())
+  user            User        @relation(fields: [userId], references: [id])
+  userId          String
+  type            LeaveType   @default(annual)
+  startDate       DateTime
+  endDate         DateTime
+  reason          String?
+  status          LeaveStatus @default(requested)
+  cancelRequested Boolean     @default(false) // 승인된 휴가 취소 요청(관리자 확인 대기)
+  createdAt       DateTime    @default(now())
 }
 
 model Message {
