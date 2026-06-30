@@ -57,6 +57,10 @@ export class CreateTaskDto {
   aiDescriptionDoc?: string;
 
   @IsOptional()
+  @IsString()
+  statusMemo?: string;
+
+  @IsOptional()
   @IsISO8601()
   dueDate?: string;
 

@@ -37,6 +37,14 @@ export class CreateUserDto {
   statusMessage?: string;
 
   @IsOptional()
+  @IsString()
+  workStart?: string;
+
+  @IsOptional()
+  @IsString()
+  workEnd?: string;
+
+  @IsOptional()
   @IsBoolean()
   isAdmin?: boolean;
 

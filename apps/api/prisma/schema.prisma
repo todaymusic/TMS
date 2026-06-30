@@ -80,6 +80,8 @@ model User {
   avatarColor   String     @default("#4f46e5")
   status        UserStatus @default(off)
   statusMessage String?
+  workStart     String? // 출근 시간 "HH:mm" (퇴근 알림용)
+  workEnd       String? // 퇴근 시간 "HH:mm"
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -193,6 +195,7 @@ model Task {
   description     String? // 간략 메모
   descriptionPrompt String? // AI 정리 프롬프트
   aiDescriptionDoc  String? // AI 생성 업무설명 doc
+  statusMemo        String? // 진행 메모(전 직원 대시보드 공유)
 
   dueDate   DateTime?
   startedAt DateTime?
