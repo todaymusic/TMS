@@ -111,6 +111,25 @@ export type TaskDetail = Task & {
   endedAt: string | null;
 };
 
+// ───────── 채팅 ─────────
+export type ChatUser = { id: string; name: string; avatarColor: string; dept?: string | null };
+export type ChatChannel = {
+  id: string;
+  name: string | null;
+  type: "dm" | "group" | "broadcast";
+  members: ChatUser[];
+  lastMessage: { content: string; createdAt: string; userName: string } | null;
+  lastAt: string;
+  unread: number;
+};
+export type ChatMessage = {
+  id: string;
+  content: string;
+  pinned: boolean;
+  createdAt: string;
+  user: ChatUser;
+};
+
 export type ProjectLink = { label: string; url: string };
 
 export type TaskInProject = {
