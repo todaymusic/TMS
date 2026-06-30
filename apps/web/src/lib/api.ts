@@ -148,6 +148,21 @@ export type ScheduleBlock = {
   task: { id: string; title: string; priority: Priority; status: TaskStatus } | null;
 };
 
+export type Meeting = {
+  id: string;
+  title: string;
+  date: string;
+  driveFileId: string | null;
+  videoUrl: string | null;
+  transcriptUrl: string | null;
+  transcriptText: string | null;
+  summary: string | null;
+  createdAt: string;
+};
+export function driveLink(fileId: string | null | undefined) {
+  return fileId ? `https://drive.google.com/file/d/${fileId}/view` : null;
+}
+
 export type ProjectLink = { label: string; url: string };
 
 export type TaskInProject = {

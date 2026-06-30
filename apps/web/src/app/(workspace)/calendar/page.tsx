@@ -5,9 +5,12 @@ import {
   api,
   type Leave,
   type LeaveType,
+  type Meeting,
   type ProjectListItem,
   type Task,
 } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { MeetingCreateModal, MeetingDetailModal } from "./MeetingModals";
 
 const DOWS = ["월", "화", "수", "목", "금", "토", "일"];
 
@@ -42,26 +45,40 @@ function evKind(t: Task, today: Date): EvKind {
 }
 
 export default function CalendarPage() {
+  const { user: me } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [leaves, setLeaves] = useState<LeaveCal[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [err, setErr] = useState<string | null>(null);
-  const [tab, setTab] = useState<"task" | "work">("task");
+  const [tab, setTab] = useState<"task" | "work" | "meeting">("task");
   const [q, setQ] = useState("");
+  const [meetCreate, setMeetCreate] = useState(false);
+  const [meetSel, setMeetSel] = useState<Meeting | null>(null);
+
+  async function loadMeetings() {
+    try {
+      setMeetings(await api.get<Meeting[]>("/meetings"));
+    } catch {
+      /* noop */
+    }
+  }
   // 표시 월 (기준: 2026-06)
   const [ym, setYm] = useState<{ y: number; m: number }>({ y: 2026, m: 5 }); // m: 0-based
 
   useEffect(() => {
     (async () => {
       try {
-        const [t, p, l] = await Promise.all([
+        const [t, p, l, mt] = await Promise.all([
           api.get<Task[]>("/tasks"),
           api.get<ProjectListItem[]>("/projects"),
           api.get<LeaveCal[]>("/leaves"),
+          api.get<Meeting[]>("/meetings"),
         ]);
         setTasks(t);
         setProjects(p);
         setLeaves(l);
+        setMeetings(mt);
       } catch (e) {
         setErr(e instanceof Error ? e.message : "불러오기 실패");
       }
@@ -111,15 +128,26 @@ export default function CalendarPage() {
       }
     }
 
-    type Cell = { day: number | null; tasks: Task[]; leaves: LeaveCal[] };
+    // 회의: 날짜에 표시
+    const meetByDay = new Map<number, Meeting[]>();
+    for (const mt of meetings) {
+      const d = new Date(mt.date);
+      if (d.getFullYear() === y && d.getMonth() === m) {
+        const day = d.getDate();
+        meetByDay.set(day, [...(meetByDay.get(day) ?? []), mt]);
+      }
+    }
+
+    type Cell = { day: number | null; tasks: Task[]; leaves: LeaveCal[]; meetings: Meeting[] };
+    const empty = (): Cell => ({ day: null, tasks: [], leaves: [], meetings: [] });
     const cells: Cell[] = [];
-    for (let i = 0; i < offset; i++) cells.push({ day: null, tasks: [], leaves: [] });
+    for (let i = 0; i < offset; i++) cells.push(empty());
     for (let d = 1; d <= days; d++)
-      cells.push({ day: d, tasks: taskByDay.get(d) ?? [], leaves: leaveByDay.get(d) ?? [] });
-    while (cells.length % 7 !== 0) cells.push({ day: null, tasks: [], leaves: [] });
+      cells.push({ day: d, tasks: taskByDay.get(d) ?? [], leaves: leaveByDay.get(d) ?? [], meetings: meetByDay.get(d) ?? [] });
+    while (cells.length % 7 !== 0) cells.push(empty());
 
     return { cells, monthLabel: `${y}년 ${m + 1}월` };
-  }, [ym, tasks, leaves, q]);
+  }, [ym, tasks, leaves, meetings, q]);
 
   // 간트: 전체 프로젝트 기간 범위에 맞춰 막대 배치
   const gantt = useMemo(() => {
@@ -177,13 +205,16 @@ export default function CalendarPage() {
             API 오류: {err}
           </div>
         )}
-        {/* 탭: 업무 / 근무 */}
-        <div className="cat-row" style={{ marginBottom: 14, maxWidth: 240 }}>
+        {/* 탭: 업무 / 근무 / 회의 */}
+        <div className="cat-row" style={{ marginBottom: 14, maxWidth: 340 }}>
           <div className={`cat${tab === "task" ? " on" : ""}`} onClick={() => setTab("task")}>
             📋 업무
           </div>
           <div className={`cat${tab === "work" ? " on" : ""}`} onClick={() => setTab("work")}>
             🌴 근무
+          </div>
+          <div className={`cat${tab === "meeting" ? " on" : ""}`} onClick={() => setTab("meeting")}>
+            📹 회의
           </div>
         </div>
 
@@ -203,6 +234,10 @@ export default function CalendarPage() {
                 style={{ width: 200 }}
               />
             </div>
+          ) : tab === "meeting" ? (
+            <button className="btn primary sm" style={{ marginLeft: "auto" }} onClick={() => setMeetCreate(true)}>
+              ＋ 회의 만들기
+            </button>
           ) : (
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>
               연차·휴가 기간 표시
@@ -227,20 +262,33 @@ export default function CalendarPage() {
                 }`}
               >
                 <div className="cal-num">{c.day}</div>
-                {tab === "task"
-                  ? c.tasks.map((t) => {
-                      const k = evKind(t, today);
-                      return (
-                        <div key={t.id} className="cal-ev" style={EV_STYLE[k]}>
-                          {(t.assignee?.name?.slice(0, 1) ?? "") + ":" + t.title}
-                        </div>
-                      );
-                    })
-                  : c.leaves.map((lv) => (
-                      <div key={lv.id} className="cal-ev" style={leaveStyle(lv.status)}>
-                        {lv.user.name} {LEAVE_LABEL[lv.type]}
+                {tab === "task" &&
+                  c.tasks.map((t) => {
+                    const k = evKind(t, today);
+                    return (
+                      <div key={t.id} className="cal-ev" style={EV_STYLE[k]}>
+                        {(t.assignee?.name?.slice(0, 1) ?? "") + ":" + t.title}
                       </div>
-                    ))}
+                    );
+                  })}
+                {tab === "work" &&
+                  c.leaves.map((lv) => (
+                    <div key={lv.id} className="cal-ev" style={leaveStyle(lv.status)}>
+                      {lv.user.name} {LEAVE_LABEL[lv.type]}
+                    </div>
+                  ))}
+                {tab === "meeting" &&
+                  c.meetings.map((mt) => (
+                    <div
+                      key={mt.id}
+                      className="cal-ev"
+                      style={{ background: "#ede9fe", color: "#6d28d9", cursor: "pointer" }}
+                      onClick={() => setMeetSel(mt)}
+                      title="클릭하면 회의 상세"
+                    >
+                      📹 {mt.title}
+                    </div>
+                  ))}
               </div>
             ),
           )}
@@ -281,6 +329,26 @@ export default function CalendarPage() {
         </div>
         )}
       </div>
+
+      {meetCreate && (
+        <MeetingCreateModal
+          authorId={me?.id}
+          defaultDate={`${ym.y}-${String(ym.m + 1).padStart(2, "0")}-${String(Math.min(today.getDate(), new Date(ym.y, ym.m + 1, 0).getDate())).padStart(2, "0")}`}
+          onClose={() => setMeetCreate(false)}
+          onCreated={(m) => {
+            setMeetCreate(false);
+            setMeetings((cur) => [m, ...cur]);
+            setTab("meeting");
+          }}
+        />
+      )}
+      {meetSel && (
+        <MeetingDetailModal
+          meeting={meetSel}
+          onClose={() => setMeetSel(null)}
+          onChanged={loadMeetings}
+        />
+      )}
     </>
   );
 }
