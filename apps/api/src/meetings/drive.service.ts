@@ -1,5 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { google, type drive_v3 } from 'googleapis';
+import mammoth from 'mammoth';
+
+const DOCX_MIME =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 @Injectable()
 export class DriveService {
@@ -78,8 +82,19 @@ export class DriveService {
       );
       return String(res.data ?? '');
     }
+    if (file.mimeType === DOCX_MIME) {
+      const res = await drive.files.get(
+        { fileId: file.id!, alt: 'media' },
+        { responseType: 'arraybuffer' },
+      );
+      const buffer = Buffer.from(res.data as ArrayBuffer);
+      const out = await mammoth.extractRawText({ buffer });
+      return out.value ?? '';
+    }
     return '';
   }
+
+  static readonly DOCX_MIME = DOCX_MIME;
 
   get enabled() {
     return !!process.env.GOOGLE_SERVICE_ACCOUNT_JSON;

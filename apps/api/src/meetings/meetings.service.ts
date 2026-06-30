@@ -82,10 +82,12 @@ export class MeetingsService {
     const files = await this.drive.listFolder(fid);
     const videos = files.filter((f) => f.mimeType?.startsWith('video/'));
     // 트랜스크립트 = 구글문서/텍스트 (Gemini 회의록 등)
+    const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     const docs = files.filter(
       (f) =>
         f.mimeType === 'application/vnd.google-apps.document' ||
-        f.mimeType?.startsWith('text/'),
+        f.mimeType?.startsWith('text/') ||
+        f.mimeType === DOCX,
     );
 
     const usedVideos = new Set<string>();
