@@ -4,9 +4,11 @@ import { useState } from "react";
 import {
   api,
   type Priority,
+  type TaskDetail,
   type TaskInProject,
   type TaskStatus,
 } from "@/lib/api";
+import TaskDetailModal from "./TaskDetailModal";
 
 const PRI: Record<Priority, { label: string; cls: string }> = {
   urgent: { label: "긴급", cls: "u" },
@@ -47,6 +49,26 @@ export default function Kanban({
   const [tasks, setTasks] = useState<TaskInProject[]>(initial);
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  // 상세 모달에서 저장 시 보드 카드 갱신
+  function applyUpdate(u: TaskDetail) {
+    setTasks((cur) =>
+      cur.map((t) =>
+        t.id === u.id
+          ? {
+              ...t,
+              title: u.title,
+              priority: u.priority,
+              status: u.status,
+              dueDate: u.dueDate,
+              progress: u.progress,
+              assignee: u.assignee,
+            }
+          : t,
+      ),
+    );
+  }
 
   // 태스크 추가
   const [adding, setAdding] = useState(false);
@@ -187,7 +209,9 @@ export default function Kanban({
                     e.dataTransfer.effectAllowed = "move";
                   }}
                   onDragEnd={() => setDragId(null)}
-                  style={{ cursor: "grab", opacity: dragId === t.id ? 0.5 : 1 }}
+                  onClick={() => setSelected(t.id)}
+                  style={{ cursor: "pointer", opacity: dragId === t.id ? 0.5 : 1 }}
+                  title="클릭하면 상세 보기"
                 >
                   <div className="kt">{t.title}</div>
                   <div className="kf">
@@ -203,8 +227,16 @@ export default function Kanban({
         })}
       </div>
       <div className="hint" style={{ marginTop: 12 }}>
-        ↔ 카드를 다른 칸으로 드래그하면 상태가 바뀝니다.
+        ↔ 카드를 드래그하면 상태 변경 · 클릭하면 상세 보기/수정
       </div>
+
+      {selected && (
+        <TaskDetailModal
+          taskId={selected}
+          onClose={() => setSelected(null)}
+          onSaved={applyUpdate}
+        />
+      )}
     </>
   );
 }

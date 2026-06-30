@@ -102,6 +102,15 @@ export type Task = {
   project: { id: string; name: string } | null;
 };
 
+// 업무 상세(GET /tasks/:id) — 전체 필드
+export type TaskDetail = Task & {
+  description: string | null;
+  descriptionPrompt: string | null;
+  aiDescriptionDoc: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+};
+
 export type ProjectLink = { label: string; url: string };
 
 export type TaskInProject = {
