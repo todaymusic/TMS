@@ -135,6 +135,15 @@ export type ChatMessage = {
   user: ChatUser;
 };
 
+export type ScheduleBlock = {
+  id: string;
+  taskId: string | null;
+  label: string | null;
+  startMin: number;
+  endMin: number;
+  task: { id: string; title: string; priority: Priority; status: TaskStatus } | null;
+};
+
 export type ProjectLink = { label: string; url: string };
 
 export type TaskInProject = {

@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { api, progressColor, type Leave, type Priority, type Task, type User } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import TaskDetailModal from "@/components/TaskDetailModal";
+import ScheduleBoard from "@/components/ScheduleBoard";
 
 const PRI: Record<Priority, { label: string; bg: string; fg: string }> = {
   urgent: { label: "긴급", bg: "#fee2e2", fg: "#b91c1c" },
@@ -217,8 +218,6 @@ function ActivityInner() {
       return planned || (t.dueDate && ymd(new Date(t.dueDate)) === selKey);
     })
     .sort((a, b) => ddays(a) - ddays(b));
-  const doingCount = tasks.filter((t) => stateOf(t) === "doing").length;
-
   // 마감 임박(2일 이내 미완료)
   const now = new Date();
   const soon = tasks
@@ -229,6 +228,8 @@ function ActivityInner() {
 
   // ───── 스케줄(오늘): 계획 + 실제 + 근태 ─────
   const todayKey = ymd(new Date());
+  const _td = new Date();
+  const dateKeyISO = `${_td.getFullYear()}-${String(_td.getMonth() + 1).padStart(2, "0")}-${String(_td.getDate()).padStart(2, "0")}`;
   const work = { start: targetUser?.workStart, end: targetUser?.workEnd };
   const todayLeave = userLeaves.find((l) => {
     if (l.status !== "approved") return false;
@@ -236,22 +237,12 @@ function ActivityInner() {
     const e = new Date(l.endDate); e.setHours(23, 59, 59, 999);
     return now >= s && now <= e;
   });
-  const actual = tasks
-    .filter((t) => t.startedAt && ymd(new Date(t.startedAt)) === todayKey)
-    .map((t) => ({ t, s: new Date(t.startedAt!), e: t.endedAt ? new Date(t.endedAt) : null }))
-    .sort((a, b) => a.s.getTime() - b.s.getTime());
-  const concurrent = (i: number) => {
-    const a = actual[i];
-    const ae = a.e ?? now;
-    return actual.some((b, j) => j !== i && a.s < (b.e ?? now) && b.s < ae);
-  };
-  const planned = tasks.filter(
-    (t) => stateOf(t) === "todo" && (!t.dueDate || ymd(new Date(t.dueDate)) === todayKey),
-  );
-
-  // 내가 부여한 업무: 나에게 / 남에게
+  // 내가 부여한 업무: 나에게 / 남에게  +  남이 나에게 부여한 업무
   const assignedSelf = assigned.filter((t) => t.assignee?.id === targetId);
   const assignedOut = assigned.filter((t) => t.assignee?.id !== targetId);
+  const fromOthers = tasks.filter((t) => t.assigner && t.assigner.id !== targetId);
+  const isPlannedToday = (t: Task) =>
+    !!t.plannedDate && ymd(new Date(t.plannedDate)) === ymd(new Date());
   const stLabel = (t: Task) =>
     stateOf(t) === "done" ? "완료" : stateOf(t) === "doing" ? "진행중" : "대기";
 
@@ -386,6 +377,35 @@ function ActivityInner() {
                   </span>
                   <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
                   <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 📥 남이 나에게 부여한 업무 */}
+          <div className="card">
+            <div className="panel-head">
+              <div className="sec-title"><span className="em">📥</span> {isSelf ? "남이 나에게" : "남이 이 사람에게"} 부여한 업무</div>
+              <span className="count" style={{ marginLeft: "auto" }}>{fromOthers.length}</span>
+            </div>
+            <div style={{ padding: "6px 14px 14px", display: "grid", gap: 6 }}>
+              {fromOthers.length === 0 && (
+                <div style={{ color: "var(--text-3)", fontSize: 13 }}>없음</div>
+              )}
+              {fromOthers.map((t) => (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8 }}>
+                  <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>{PRI[t.priority].label}</span>
+                  <span style={{ flex: 1, cursor: "pointer" }} onClick={() => setDetailId(t.id)}>{t.title}</span>
+                  <span style={{ fontSize: 11, color: "var(--text-3)" }}>{t.assigner?.name}↗</span>
+                  <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
+                  <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
+                  {isSelf && stateOf(t) !== "done" && (
+                    isPlannedToday(t) ? (
+                      <button className="btn sm" onClick={() => planToday(t.id, false)} disabled={busy === t.id}>오늘 빼기</button>
+                    ) : (
+                      <button className="btn sm" onClick={() => planToday(t.id, true)} disabled={busy === t.id}>↓ 오늘 하기</button>
+                    )
+                  )}
                 </div>
               ))}
             </div>
@@ -535,65 +555,20 @@ function ActivityInner() {
 
           {/* 우: 스케줄 + 업무 통계 */}
           <div style={{ display: "grid", gap: 18 }}>
-            <div className="card">
-              <div className="panel-head">
-                <div className="sec-title">
-                  <span className="em">📅</span> 오늘 스케줄
-                </div>
-                <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>
-                  {work.start && work.end ? `근무 ${work.start}~${work.end}` : "근무시간 미설정"}
-                </span>
+            {todayLeave && (
+              <div style={{ padding: "8px 12px", background: "#dcfce7", borderRadius: 8, fontSize: 13, color: "#15803d" }}>
+                🌴 오늘은 휴가 ({LEAVE_KO[todayLeave.type]})
               </div>
-              <div style={{ padding: 14, display: "grid", gap: 14 }}>
-                {todayLeave && (
-                  <div style={{ padding: "8px 12px", background: "#dcfce7", borderRadius: 8, fontSize: 13, color: "#15803d" }}>
-                    🌴 오늘은 휴가 ({LEAVE_KO[todayLeave.type]})
-                  </div>
-                )}
-
-                {/* 계획 */}
-                <div>
-                  <div className="field-lbl" style={{ marginBottom: 6 }}>📋 계획 (오늘 할 일)</div>
-                  {planned.length === 0 ? (
-                    <div style={{ color: "var(--text-3)", fontSize: 13 }}>계획된 할 일이 없어요.</div>
-                  ) : (
-                    <div style={{ display: "grid", gap: 5 }}>
-                      {planned.map((t) => (
-                        <div key={t.id} onClick={() => setDetailId(t.id)} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
-                          <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>
-                            {PRI[t.priority].label}
-                          </span>
-                          <span style={{ flex: 1 }}>{t.title}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* 실제 */}
-                <div>
-                  <div className="field-lbl" style={{ marginBottom: 6 }}>✅ 실제 (처리 타임라인)</div>
-                  {actual.length === 0 ? (
-                    <div style={{ color: "var(--text-3)", fontSize: 13 }}>아직 시작한 업무가 없어요.</div>
-                  ) : (
-                    <div style={{ display: "grid", gap: 6 }}>
-                      {actual.map((a, i) => (
-                        <div key={a.t.id} onClick={() => setDetailId(a.t.id)} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
-                          <span className="pill gray" style={{ minWidth: 92, textAlign: "center", fontSize: 11 }}>
-                            {hm(a.s.toISOString())}~{a.e ? hm(a.e.toISOString()) : "진행"}
-                          </span>
-                          <span style={{ flex: 1 }}>{a.t.title}</span>
-                          {concurrent(i) && (
-                            <span className="pill" style={{ background: "#fef9c3", color: "#a16207", fontSize: 10 }}>⚡동시</span>
-                          )}
-                          {!a.e && <span className="pill" style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: 10 }}>진행중</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            )}
+            <ScheduleBoard
+              userId={targetId ?? ""}
+              dateKey={dateKeyISO}
+              workStart={work.start}
+              workEnd={work.end}
+              tasks={tasks}
+              dragTasks={dayTasks}
+              readOnly={!isSelf}
+            />
 
             <div className="card">
               <div className="panel-head">

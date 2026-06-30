@@ -86,7 +86,18 @@ export class AiService {
     const next = new Date(d);
     next.setDate(next.getDate() + 1);
 
-    const tasks = await this.prisma.task.findMany({
+    const select = {
+      title: true,
+      description: true,
+      aiDescriptionDoc: true,
+      statusMemo: true,
+      reportLink: true,
+      videoLink: true,
+      progress: true,
+      status: true,
+    } as const;
+
+    let tasks = await this.prisma.task.findMany({
       where: {
         assigneeId: userId,
         OR: [
@@ -95,19 +106,19 @@ export class AiService {
           { dueDate: { gte: d, lt: next } },
         ],
       },
-      select: {
-        title: true,
-        description: true,
-        aiDescriptionDoc: true,
-        statusMemo: true,
-        reportLink: true,
-        videoLink: true,
-        progress: true,
-        status: true,
-      },
+      select,
     });
+    // 폴백: 오늘 날짜 업무가 없으면 진행중/완료 등 활동 업무로 평가
     if (tasks.length === 0) {
-      throw new BadRequestException('오늘 평가할 업무가 없습니다');
+      tasks = await this.prisma.task.findMany({
+        where: { assigneeId: userId, status: { not: 'todo' } },
+        select,
+        orderBy: { updatedAt: 'desc' },
+        take: 10,
+      });
+    }
+    if (tasks.length === 0) {
+      throw new BadRequestException('평가할 업무가 없습니다');
     }
 
     const client = this.ensureClient();
