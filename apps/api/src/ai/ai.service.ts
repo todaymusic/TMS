@@ -87,7 +87,7 @@ export class AiService {
     const client = this.ensureClient();
     const msg = await client.messages.create({
       model: MODEL,
-      max_tokens: 1500,
+      max_tokens: 3500,
       system:
         '회의 트랜스크립트를 한국어로 정리하는 어시스턴트입니다. ' +
         '(1) title: 회의에서 실제 논의된 **핵심 키워드(주제) 1~3개**를 뽑아 그 주제들이 드러나는 간결한 제목을 만드세요. ' +
