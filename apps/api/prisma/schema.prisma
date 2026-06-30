@@ -197,10 +197,11 @@ model Task {
   aiDescriptionDoc  String? // AI 생성 업무설명 doc
   statusMemo        String? // 진행 메모(전 직원 대시보드 공유)
 
-  dueDate   DateTime?
-  startedAt DateTime?
-  endedAt   DateTime?
-  progress  Int       @default(0)
+  dueDate     DateTime?
+  plannedDate DateTime? // '오늘 하기'로 옮긴 날(오늘의 업무에 표시)
+  startedAt   DateTime?
+  endedAt     DateTime?
+  progress    Int       @default(0)
 
   // 부여자 / 수행자 / 프로젝트
   assigner   User?   @relation("assigner", fields: [assignerId], references: [id])

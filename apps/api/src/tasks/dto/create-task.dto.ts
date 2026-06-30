@@ -65,6 +65,10 @@ export class CreateTaskDto {
   dueDate?: string;
 
   @IsOptional()
+  @IsString()
+  plannedDate?: string; // ISO 또는 "" (해제)
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(100)
