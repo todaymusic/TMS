@@ -50,6 +50,24 @@ export class TasksController {
     return this.tasks.accept(id);
   }
 
+  // 완료 검수: AI 평가 생성
+  @Post(':id/ai-review')
+  aiReview(@Param('id') id: string) {
+    return this.tasks.aiReview(id);
+  }
+
+  // 재작업 요청(+사유)
+  @Post(':id/rework')
+  rework(@Param('id') id: string, @Body() body: { reason?: string }) {
+    return this.tasks.rework(id, body?.reason ?? '');
+  }
+
+  // 승인 + 등급
+  @Post(':id/approve')
+  approve(@Param('id') id: string, @Body() body: { grade?: string }) {
+    return this.tasks.approve(id, body?.grade ?? '양호');
+  }
+
   // 잠시 중단 / 재개 (세션 시간 기록)
   @Post(':id/pause')
   pause(@Param('id') id: string) {

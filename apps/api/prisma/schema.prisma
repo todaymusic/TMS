@@ -203,6 +203,10 @@ model Task {
   descriptionPrompt String? // AI 정리 프롬프트
   aiDescriptionDoc  String? // AI 생성 업무설명 doc
   statusMemo        String? // 진행 메모(전 직원 대시보드 공유)
+  reworkCount       Int     @default(0) // 재작업 횟수(#2,#3...)
+  reworkReason      String? // 최근 재작업 사유
+  grade             String? // 검수 등급: 우수/양호/보완
+  aiReview          String? // AI 완료 평가(캐시)
 
   dueDate     DateTime?
   plannedDate DateTime? // '오늘 하기'로 옮긴 날(오늘의 업무에 표시)

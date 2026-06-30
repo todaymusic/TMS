@@ -122,6 +122,55 @@ export class AiService {
     }
   }
 
+  /** 완료 검수 평가 — 업무설명 대비 제출(노트·보고·진행률)이 충실한지 → 평가 + 등급추천 */
+  async evaluateTaskCompletion(input: {
+    title: string;
+    description?: string | null;
+    aiDescriptionDoc?: string | null;
+    statusMemo?: string | null;
+    reportLink?: string | null;
+    videoLink?: string | null;
+    progress: number;
+  }): Promise<{ evaluation: string; grade: string }> {
+    const client = this.ensureClient();
+    const body = [
+      `업무: ${input.title}`,
+      `업무 설명(요구사항): ${(input.aiDescriptionDoc || input.description || '없음').slice(0, 1500)}`,
+      `담당자 진행 메모: ${input.statusMemo || '없음'}`,
+      `제출 산출물: ${input.reportLink || input.videoLink || '없음'}`,
+      `담당자 설정 진행률: ${input.progress}%`,
+    ].join('\n');
+
+    const msg = await client.messages.create({
+      model: MODEL,
+      max_tokens: 700,
+      system:
+        '당신은 업무 검수자입니다. 업무 요구사항(설명) 대비 담당자가 제출한 결과(진행 메모·산출물·진행률)가 얼마나 충실히 완료됐는지 평가하세요. ' +
+        '(1) evaluation: 한국어 2~4문장 평가 — 잘된 점, 부족한 점, 요구사항 충족 여부, 재작업 필요 여부 의견. ' +
+        '(2) grade: "우수"(요구 충족+완성도 높음) / "양호"(대체로 충족) / "보완"(부족, 재작업 권장) 중 하나 추천.',
+      messages: [{ role: 'user', content: body }],
+      output_config: {
+        format: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              evaluation: { type: 'string' },
+              grade: { type: 'string', enum: ['우수', '양호', '보완'] },
+            },
+            required: ['evaluation', 'grade'],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    try {
+      return JSON.parse(this.textOf(msg)) as { evaluation: string; grade: string };
+    } catch {
+      throw new BadRequestException('AI 응답 파싱 실패');
+    }
+  }
+
   /** 데일리 평가 — 업무설명 ↔ 노트/보고 ↔ 진행률% 일치도 한줄평 */
   async dailyReview(userId: string, date: string) {
     const d = new Date(date);

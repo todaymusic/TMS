@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { TaskStatus } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
+import { AiService } from '../ai/ai.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { EndTaskDto } from './dto/end-task.dto';
 import { QueryTaskDto } from './dto/query-task.dto';
@@ -18,7 +19,77 @@ const taskInclude = {
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ai: AiService,
+  ) {}
+
+  /** 완료 검수: AI 평가 생성(캐시) — 요청자가 검수창 열 때 */
+  async aiReview(id: string) {
+    const t = await this.findOne(id);
+    const r = await this.ai.evaluateTaskCompletion({
+      title: t.title,
+      description: t.description,
+      aiDescriptionDoc: t.aiDescriptionDoc,
+      statusMemo: t.statusMemo,
+      reportLink: t.reportLink,
+      videoLink: t.videoLink,
+      progress: t.progress,
+    });
+    await this.prisma.task.update({
+      where: { id },
+      data: { aiReview: r.evaluation },
+    });
+    return r; // { evaluation, grade(추천) }
+  }
+
+  /** 재작업 요청 — reworkCount++, 사유 저장, 다시 진행, 담당자 알림 */
+  async rework(id: string, reason: string) {
+    const t = await this.findOne(id);
+    const updated = await this.prisma.task.update({
+      where: { id },
+      data: {
+        reworkCount: { increment: 1 },
+        reworkReason: reason,
+        status: TaskStatus.doing,
+        endedAt: null,
+        grade: null,
+      },
+      include: taskInclude,
+    });
+    if (t.assigneeId) {
+      await this.prisma.notification.create({
+        data: {
+          userId: t.assigneeId,
+          type: 'task',
+          content: `🔁 «${t.title}» 재작업 요청(#${updated.reworkCount}) — 사유: ${reason}`,
+          link: '/activity',
+        },
+      });
+    }
+    return updated;
+  }
+
+  /** 승인 + 등급 부여 — status done 유지, 담당자 알림 */
+  async approve(id: string, grade: string) {
+    const t = await this.findOne(id);
+    const updated = await this.prisma.task.update({
+      where: { id },
+      data: { grade, status: TaskStatus.done },
+      include: taskInclude,
+    });
+    if (t.assigneeId) {
+      await this.prisma.notification.create({
+        data: {
+          userId: t.assigneeId,
+          type: 'task',
+          content: `🏅 «${t.title}» 업무가 승인됐어요 — 등급: ${grade}`,
+          link: '/activity',
+        },
+      });
+    }
+    return updated;
+  }
 
   create(dto: CreateTaskDto) {
     const { dueDate, ...rest } = dto;
