@@ -87,6 +87,10 @@ function ActivityInner() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [reviewTask, setReviewTask] = useState<Task | null>(null);
   const [endAlarm, setEndAlarm] = useState(false);
+  // 내 업무 빠른 추가
+  const [myAddOpen, setMyAddOpen] = useState(false);
+  const [myTitle, setMyTitle] = useState("");
+  const [myPrio, setMyPrio] = useState<Priority>("medium");
 
   async function load() {
     if (!me || !targetId) return;
@@ -172,6 +176,27 @@ function ActivityInner() {
     }
   }
 
+  async function addMyTask() {
+    if (!me || !myTitle.trim()) return;
+    setBusy("myadd");
+    try {
+      await api.post("/tasks", {
+        title: myTitle.trim(),
+        category: "shorts",
+        priority: myPrio,
+        status: "todo",
+        assignerId: me.id,
+        assigneeId: me.id,
+        plannedDate: new Date().toISOString(), // 오늘의 업무에 바로
+      });
+      setMyTitle("");
+      setMyAddOpen(false);
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function accept(id: string) {
     setBusy(id);
     try {
@@ -233,19 +258,30 @@ function ActivityInner() {
   const dayLabel = dayOffset === 0 ? "오늘" : dayOffset === -1 ? "어제" : dayOffset === 1 ? "내일" : `${selDate.getMonth() + 1}/${selDate.getDate()}`;
   const ddays = (t: Task) =>
     t.dueDate ? Math.ceil((new Date(t.dueDate).getTime() - Date.now()) / 86400000) : Infinity;
-  // 오늘의 업무 = 오늘로 옮긴 것 + 마감 D-3이내/지난 미완료(자동) + 진행중. 마감 급한 순.
+  const todayStart0 = new Date();
+  todayStart0.setHours(0, 0, 0, 0);
+  const dateOnly = (s: string) => {
+    const d = new Date(s);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+  // 오늘의 업무 = (오늘 이하로 계획된 미완료=이월) + 마감 D-3이내/지난 미완료 + 진행중. 마감 급한 순.
   const dayTasks = tasks
     .filter((t) => {
       // 남이 요청한 업무는 수락 전엔 오늘의 업무에서 제외
       if (t.assigner && t.assigner.id !== targetId && !t.acceptedAt) return false;
-      const planned = t.plannedDate && ymd(new Date(t.plannedDate)) === selKey;
       if (dayOffset === 0) {
+        // 오늘 이하로 '오늘 하기' 한 미완료 업무는 완료할 때까지 계속 이월
+        const plannedCarry =
+          !!t.plannedDate && dateOnly(t.plannedDate) <= todayStart0.getTime() && stateOf(t) !== "done";
         return (
-          planned ||
+          plannedCarry ||
           stateOf(t) === "doing" ||
           (stateOf(t) !== "done" && ddays(t) <= 3)
         );
       }
+      // 어제/내일 보기: 그 날짜에 계획됐거나 마감인 것
+      const planned = t.plannedDate && ymd(new Date(t.plannedDate)) === selKey;
       return planned || (t.dueDate && ymd(new Date(t.dueDate)) === selKey);
     })
     .sort((a, b) => ddays(a) - ddays(b));
@@ -364,11 +400,33 @@ function ActivityInner() {
           <div className="card">
             <div className="panel-head">
               <div className="sec-title"><span className="em">🙋</span> 나의 업무</div>
-              <span className="count" style={{ marginLeft: "auto" }}>{assignedSelf.length}</span>
+              <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+                {isSelf && <button className="btn sm" onClick={() => setMyAddOpen((o) => !o)}>＋ 추가</button>}
+                <span className="count">{assignedSelf.length}</span>
+              </span>
             </div>
+            {isSelf && myAddOpen && (
+              <div style={{ display: "flex", gap: 6, padding: "0 14px 10px", alignItems: "center" }}>
+                <input
+                  className="inp"
+                  placeholder="내 업무 제목"
+                  value={myTitle}
+                  onChange={(e) => setMyTitle(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void addMyTask(); }}
+                  style={{ flex: 1, minWidth: 0 }}
+                  autoFocus
+                />
+                <select className="inp" value={myPrio} onChange={(e) => setMyPrio(e.target.value as Priority)} style={{ width: 80 }}>
+                  {(["urgent", "high", "medium", "low"] as Priority[]).map((p) => (
+                    <option key={p} value={p}>{PRI[p].label}</option>
+                  ))}
+                </select>
+                <button className="btn primary sm" onClick={addMyTask} disabled={busy === "myadd"}>추가</button>
+              </div>
+            )}
             <div style={{ padding: "6px 14px 14px", display: "grid", gap: 6 }}>
               {assignedSelf.length === 0 && (
-                <div style={{ color: "var(--text-3)", fontSize: 13 }}>없음</div>
+                <div style={{ color: "var(--text-3)", fontSize: 13 }}>＋추가로 내 업무를 만들어보세요.</div>
               )}
               {assignedSelf.map((t) => (
                 <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8 }}>
