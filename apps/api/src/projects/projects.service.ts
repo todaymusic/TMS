@@ -29,15 +29,29 @@ export class ProjectsService {
     });
   }
 
-  findAll() {
-    return this.prisma.project.findMany({
+  // 진행률 = 완료 태스크 비율 (태스크 보드 기준 자동 산출)
+  private calcProgress(tasks: { status: string }[]): number {
+    if (!tasks.length) return 0;
+    const done = tasks.filter(
+      (t) => t.status === 'done' || t.status === 'completed_pending',
+    ).length;
+    return Math.round((done / tasks.length) * 100);
+  }
+
+  async findAll() {
+    const projects = await this.prisma.project.findMany({
       include: {
         owners: { include: memberSelect },
         participants: { include: memberSelect },
         _count: { select: { tasks: true, messages: true } },
+        tasks: { select: { status: true } },
       },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: { createdAt: 'asc' }, // 기본: 오래된 순 (프론트에서 아카이브만 최근순 재정렬)
     });
+    return projects.map(({ tasks, ...p }) => ({
+      ...p,
+      progress: this.calcProgress(tasks),
+    }));
   }
 
   async findOne(id: string) {
@@ -55,7 +69,7 @@ export class ProjectsService {
       },
     });
     if (!project) throw new NotFoundException(`Project ${id} not found`);
-    return project;
+    return { ...project, progress: this.calcProgress(project.tasks) };
   }
 
   async update(id: string, dto: UpdateProjectDto) {
