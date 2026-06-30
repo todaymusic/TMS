@@ -106,6 +106,7 @@ export type Task = {
   aiReview?: string | null;
   dueDate: string | null;
   plannedDate?: string | null;
+  dayOrder?: number | null;
   acceptedAt?: string | null;
   startedAt?: string | null;
   endedAt?: string | null;

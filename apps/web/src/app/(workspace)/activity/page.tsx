@@ -91,6 +91,7 @@ function ActivityInner() {
   const [myAddOpen, setMyAddOpen] = useState(false);
   const [myTitle, setMyTitle] = useState("");
   const [myPrio, setMyPrio] = useState<Priority>("medium");
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
 
   async function load() {
     if (!me || !targetId) return;
@@ -284,7 +285,29 @@ function ActivityInner() {
       const planned = t.plannedDate && ymd(new Date(t.plannedDate)) === selKey;
       return planned || (t.dueDate && ymd(new Date(t.dueDate)) === selKey);
     })
-    .sort((a, b) => ddays(a) - ddays(b));
+    .sort((a, b) => {
+      // 수동 순서(dayOrder) 우선, 없으면 마감 급한 순
+      const oa = a.dayOrder ?? Infinity;
+      const ob = b.dayOrder ?? Infinity;
+      if (oa !== ob) return oa - ob;
+      return ddays(a) - ddays(b);
+    });
+  // 드래그로 오늘의 업무 순서 변경
+  async function reorderToday(toIdx: number) {
+    const from = dragIdx;
+    setDragIdx(null);
+    if (from === null || from === toIdx) return;
+    const arr = [...dayTasks];
+    const [moved] = arr.splice(from, 1);
+    arr.splice(toIdx, 0, moved);
+    setTasks((cur) =>
+      cur.map((t) => {
+        const i = arr.findIndex((x) => x.id === t.id);
+        return i >= 0 ? { ...t, dayOrder: i } : t;
+      }),
+    );
+    await Promise.all(arr.map((t, i) => api.patch(`/tasks/${t.id}`, { dayOrder: i }))).catch(() => {});
+  }
   // 마감 임박(2일 이내 미완료)
   const now = new Date();
   const soon = tasks
@@ -577,7 +600,7 @@ function ActivityInner() {
                     {dayLabel} 할 업무가 없어요. 위에서 “↓ 오늘 하기”로 추가하세요.
                   </div>
                 )}
-                {dayTasks.map((it) => {
+                {dayTasks.map((it, idx) => {
                   const st = stateOf(it);
                   const output =
                     [it.reportRequired ? "📊" : "", it.videoRequired ? "🎥" : ""]
@@ -588,9 +611,22 @@ function ActivityInner() {
                       key={it.id}
                       className={`chk-item ${st}`}
                       onClick={() => setDetailId(it.id)}
-                      style={{ cursor: "pointer", flexWrap: "wrap" }}
-                      title="클릭하면 상세 보기"
+                      style={{ cursor: "pointer", flexWrap: "wrap", opacity: dragIdx === idx ? 0.4 : 1 }}
+                      title="클릭하면 상세 · 손잡이로 드래그하면 순서 변경"
+                      onDragOver={(e) => isSelf && e.preventDefault()}
+                      onDrop={() => isSelf && reorderToday(idx)}
                     >
+                      {isSelf && dayOffset === 0 && (
+                        <span
+                          draggable
+                          onDragStart={(e) => { e.stopPropagation(); setDragIdx(idx); }}
+                          onClick={(e) => e.stopPropagation()}
+                          title="드래그해서 순서 변경"
+                          style={{ cursor: "grab", color: "var(--text-3)", fontSize: 15, lineHeight: 1, userSelect: "none" }}
+                        >
+                          ⠿
+                        </span>
+                      )}
                       <input
                         type="checkbox"
                         checked={st !== "todo"}
