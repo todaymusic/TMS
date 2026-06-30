@@ -70,11 +70,12 @@ export default function CalendarPage() {
     setSyncing(true);
     setSyncMsg(null);
     try {
-      const r = await api.post<{ imported: number; skipped: number; total: number }>(
+      const r = await api.post<{ imported: number; videoOnly?: number; skipped: number }>(
         `/meetings/sync?authorId=${me?.id ?? ""}`,
         {},
       );
-      setSyncMsg(`✅ ${r.imported}건 가져옴 (중복 ${r.skipped}건 건너뜀)`);
+      const vo = r.videoOnly ? ` + 영상 ${r.videoOnly}건` : "";
+      setSyncMsg(`✅ ${r.imported}건${vo} 가져옴 (중복 ${r.skipped} 건너뜀)`);
       await loadMeetings();
     } catch (e) {
       setSyncMsg(e instanceof Error ? e.message.replace(/^API.*?→\s*\d+\s*/, "") : "동기화 실패");

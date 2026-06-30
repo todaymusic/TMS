@@ -22,6 +22,15 @@ const IC: Record<string, string> = {
   system: "⚠️",
 };
 
+function urlB64ToUint8(base64: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(b64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
 function ago(d: string) {
   const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
   if (m < 1) return "방금";
@@ -119,9 +128,22 @@ export default function NotificationCenter() {
     }
   }
   async function enablePush() {
-    if (!("Notification" in window)) return;
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
     const p = await Notification.requestPermission();
     setPerm(p);
+    if (p !== "granted" || !me) return;
+    try {
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      const vapid = await api.get<{ publicKey: string | null; enabled: boolean }>("/push/vapid");
+      if (!vapid.publicKey || !vapid.enabled) return; // 서버 VAPID 미설정
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8(vapid.publicKey) as unknown as BufferSource,
+      });
+      await api.post(`/push/subscribe?userId=${me.id}`, JSON.parse(JSON.stringify(sub)));
+    } catch {
+      /* noop */
+    }
   }
 
   return (
