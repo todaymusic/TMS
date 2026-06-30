@@ -5,6 +5,8 @@ const BASE =
   process.env.NEXT_PUBLIC_API_URL ??
   'https://tms-production-6ba9.up.railway.app/api';
 
+export const API_BASE = BASE;
+
 type Json = Record<string, unknown>;
 
 function authToken(): string | null {

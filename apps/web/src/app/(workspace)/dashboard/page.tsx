@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import MeetingRecorder from "@/components/MeetingRecorder";
 import {
   api,
   progressColor,
@@ -190,6 +191,7 @@ export default function DashboardPage() {
           <div className="sub">팀 실시간 현황 · 2026년 6월 29일</div>
         </div>
         <div className="topbar-right">
+          <MeetingRecorder />
           <div className="search" style={{ position: "relative" }}>
             🔍
             <input
