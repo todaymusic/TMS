@@ -68,15 +68,22 @@ export class LeavesService {
   }
 
   async remove(id: string) {
-    await this.ensureExists(id);
-    return this.prisma.leave.delete({ where: { id } });
-  }
+    const leave = await this.prisma.leave.findUnique({ where: { id } });
+    if (!leave) throw new NotFoundException(`Leave ${id} not found`);
 
-  private async ensureExists(id: string) {
-    const exists = await this.prisma.leave.findUnique({
-      where: { id },
-      select: { id: true },
-    });
-    if (!exists) throw new NotFoundException(`Leave ${id} not found`);
+    // 승인됐던 휴가 취소 → 차감됐던 연차 복구
+    const restore =
+      leave.status === LeaveStatus.approved && DEDUCT[leave.type] > 0;
+    if (!restore) {
+      return this.prisma.leave.delete({ where: { id } });
+    }
+    const [, deleted] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: leave.userId },
+        data: { leaveBalance: { increment: DEDUCT[leave.type] } },
+      }),
+      this.prisma.leave.delete({ where: { id } }),
+    ]);
+    return deleted;
   }
 }
