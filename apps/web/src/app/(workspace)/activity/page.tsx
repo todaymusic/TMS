@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { api, type Leave, type Priority, type Task, type User } from "@/lib/api";
+import { api, progressColor, type Leave, type Priority, type Task, type User } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import TaskDetailModal from "@/components/TaskDetailModal";
 
@@ -67,6 +67,7 @@ function ActivityInner() {
   const targetId = viewId || me?.id;
 
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [assigned, setAssigned] = useState<Task[]>([]);
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [userLeaves, setUserLeaves] = useState<Leave[]>([]);
   const [targetUser, setTargetUser] = useState<User | null>(null);
@@ -89,12 +90,14 @@ function ActivityInner() {
     if (!me || !targetId) return;
     setErr(null);
     try {
-      const [t, lv] = await Promise.all([
+      const [t, lv, asg] = await Promise.all([
         api.get<Task[]>(`/tasks?assigneeId=${targetId}`),
         api.get<Leave[]>(`/leaves?userId=${targetId}`),
+        api.get<Task[]>(`/tasks?assignerId=${targetId}`),
       ]);
       setTasks(t);
       setUserLeaves(lv);
+      setAssigned(asg);
       if (isSelf) {
         setNotifs(await api.get<Notif[]>(`/notifications?userId=${me.id}`));
         setTargetName(me.name);
@@ -220,6 +223,11 @@ function ActivityInner() {
   const planned = tasks.filter(
     (t) => stateOf(t) === "todo" && (!t.dueDate || ymd(new Date(t.dueDate)) === todayKey),
   );
+
+  // 내가(=대상이) 남에게 부여한 업무
+  const assignedOut = assigned.filter((t) => t.assignee?.id !== targetId);
+  const stLabel = (t: Task) =>
+    stateOf(t) === "done" ? "완료" : stateOf(t) === "doing" ? "진행중" : "대기";
 
   // 퇴근 5분 전 알림(본인, workEnd 설정 시, 앱 열려있을 때)
   useEffect(() => {
@@ -387,7 +395,44 @@ function ActivityInner() {
                 })}
               </div>
               <div className="hint" style={{ padding: "0 18px 16px" }}>
-                체크(시작) → 대시보드에 진행중 표시 · 종료 → 완료 처리 (산출물 입력 폼 추후)
+                체크(시작) → 대시보드에 진행중 표시 · 종료 → 완료 처리
+              </div>
+            </div>
+
+            {/* 내가 부여한 업무 */}
+            <div className="card">
+              <div className="panel-head">
+                <div className="sec-title">
+                  <span className="em">📤</span> {isSelf ? "내가" : `${targetName || "이 사람"}님이`} 부여한 업무
+                </div>
+                <span className="count" style={{ marginLeft: "auto" }}>{assignedOut.length}</span>
+              </div>
+              <div style={{ padding: "6px 14px 14px", display: "grid", gap: 6 }}>
+                {assignedOut.length === 0 && (
+                  <div style={{ color: "var(--text-3)", fontSize: 13 }}>
+                    아직 부여한 업무가 없어요. (대시보드 → 업무 부여)
+                  </div>
+                )}
+                {assignedOut.map((t) => (
+                  <div
+                    key={t.id}
+                    onClick={() => setDetailId(t.id)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 8 }}
+                  >
+                    <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>
+                      {PRI[t.priority].label}
+                    </span>
+                    <span style={{ flex: 1 }}>{t.title}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-2)" }}>
+                      <span className="avatar" style={{ background: t.assignee?.avatarColor ?? "#999", width: 20, height: 20, fontSize: 10 }}>
+                        {t.assignee?.name?.slice(0, 1) ?? "?"}
+                      </span>
+                      {t.assignee?.name ?? "미지정"}
+                    </span>
+                    <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
+                    <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
+                  </div>
+                ))}
               </div>
             </div>
 
