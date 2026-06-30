@@ -6,19 +6,16 @@ import { useRouter } from "next/navigation";
 import {
   api,
   progressColor,
-  STATUS_LABEL,
   type ProjectListItem,
   type Task,
   type User,
-  type UserStatus,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
-// 업무 대분류 (category)
+// 업무 대분류 (category) — 대시보드는 롱/쇼츠만(프로젝트는 프로젝트 탭에서)
 const CATEGORIES = [
   { key: "long", ic: "⏳", label: "롱", desc: "긴 업무" },
   { key: "shorts", ic: "⚡", label: "쇼츠", desc: "짧은 업무" },
-  { key: "project", ic: "📁", label: "프로젝트" },
 ] as const;
 
 const SUBCATS = ["디자인", "개발", "마케팅", "기획", "지점업무", "교육", "운영", "인사·총무"];
@@ -32,8 +29,6 @@ const PRIOS = [
 
 const DEFAULT_AI_PROMPT = `당신은 업무 정의 어시스턴트입니다. 아래 간략 메모를 바탕으로 담당자가 바로 이해하고 착수할 수 있는 업무설명 문서를 작성하세요.
 출력: 1) 배경/목적  2) 목표(완료기준)  3) 작업범위  4) 요구 산출물  5) 체크포인트/마감`;
-
-const PRESETS: UserStatus[] = ["on", "away", "dnd", "off"];
 
 export default function DashboardPage() {
   // 서버 데이터
@@ -60,8 +55,8 @@ export default function DashboardPage() {
   const [submitMsg, setSubmitMsg] = useState<string | null>(null);
   const [aiDoc, setAiDoc] = useState<string>("");
   const [aiBusy, setAiBusy] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
 
-  const [myStatus, setMyStatus] = useState<UserStatus>("on");
   const [q, setQ] = useState("");
   const router = useRouter();
 
@@ -93,7 +88,6 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isProject = category === "project";
   const outputHint = [
     needReport ? "보고 형식 안내 (예: 주차별 진행률 포함)" : null,
     needVideo ? "영상에 담을 항목 (예: 결과 시연 / 코드 설명)" : null,
@@ -382,26 +376,16 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {isProject ? (
-                <div className="assign-field">
-                  <div
-                    style={{
-                      background: "var(--surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      padding: "12px 13px",
-                      fontSize: 12.5,
-                      color: "var(--text-2)",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    📁 프로젝트는 여기서 바로 부여할 수 없어요. <b>프로젝트 탭에서 먼저 생성</b>하고 담당자/참여자를 추가하세요.
-                  </div>
-                  <a href="/projects" className="btn" style={{ width: "100%", marginTop: 8, display: "block", textAlign: "center" }}>
-                    프로젝트 탭에서 생성하기 →
-                  </a>
-                </div>
-              ) : (
+              <button
+                type="button"
+                className="btn"
+                style={{ width: "100%", marginBottom: 12 }}
+                onClick={() => setShowDetail((s) => !s)}
+              >
+                {showDetail ? "▲ 상세 입력 접기" : "✏️ 상세 입력 (담당자·제목·마감일 등)"}
+              </button>
+
+              {showDetail && (
                 <>
                   <div className="assign-field">
                     <label>소분류 (업무 영역)</label>
@@ -472,31 +456,14 @@ export default function DashboardPage() {
                     />
                   </div>
 
-                  <div className="assign-field" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div>
-                      <label>마감일</label>
-                      <input
-                        className="inp"
-                        type="date"
-                        value={dueDate}
-                        onChange={(e) => setDueDate(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label>프로젝트</label>
-                      <select
-                        className="inp"
-                        value={projectId}
-                        onChange={(e) => setProjectId(e.target.value)}
-                      >
-                        <option value="">연결 안 함</option>
-                        {projects.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div className="assign-field">
+                    <label>마감일</label>
+                    <input
+                      className="inp"
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                    />
                   </div>
 
                   <div className="assign-field">
@@ -576,40 +543,6 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* C. 내 상태 변경 */}
-            <div className="card">
-              <div className="panel-head">
-                <div className="sec-title">
-                  <span className="em">🎯</span> 내 상태 변경
-                </div>
-              </div>
-              <div className="status-presets">
-                {PRESETS.map((s) => (
-                  <div
-                    key={s}
-                    className={`preset${myStatus === s ? " on" : ""}`}
-                    onClick={async () => {
-                      setMyStatus(s);
-                      if (me) {
-                        try {
-                          await api.patch(`/users/${me.id}`, { status: s });
-                          await load();
-                        } catch {
-                          /* noop */
-                        }
-                      }
-                    }}
-                  >
-                    <span className={`dot ${s}`} />
-                    <span className="nm">{STATUS_LABEL[s]}</span>
-                    <span className="check">✓</span>
-                  </div>
-                ))}
-                <div style={{ paddingTop: 4 }}>
-                  <input className="inp" placeholder="커스텀 상태 메시지 (예: 회의 중 3시까지)" />
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
