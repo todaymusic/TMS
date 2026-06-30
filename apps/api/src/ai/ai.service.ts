@@ -79,6 +79,43 @@ export class AiService {
     return { doc: this.textOf(msg) };
   }
 
+  /** 회의 트랜스크립트 → 간결한 제목(2단어 정도) + 회의 개요(마크다운) */
+  async meetingSummary(transcript: string): Promise<{ title: string; summary: string }> {
+    if (!transcript?.trim()) {
+      throw new BadRequestException('트랜스크립트가 비어 있습니다');
+    }
+    const client = this.ensureClient();
+    const msg = await client.messages.create({
+      model: MODEL,
+      max_tokens: 1500,
+      system:
+        '회의 트랜스크립트를 한국어로 정리하는 어시스턴트입니다. (1) title: 회의 내용을 2~3단어로 압축한 간결한 제목(예: "브랜드 리뉴얼 킥오프"). (2) summary: 마크다운으로 핵심 안건 / 주요 결정 / 액션아이템(담당·기한 있으면 포함)을 항목별로 정리. 트랜스크립트에 없는 내용은 지어내지 마세요.',
+      messages: [
+        { role: 'user', content: `다음 회의 트랜스크립트를 정리해 주세요.\n\n${transcript.slice(0, 30000)}` },
+      ],
+      output_config: {
+        format: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: '2~3단어 간결한 제목' },
+              summary: { type: 'string', description: '마크다운 회의 개요' },
+            },
+            required: ['title', 'summary'],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    const json = this.textOf(msg);
+    try {
+      return JSON.parse(json) as { title: string; summary: string };
+    } catch {
+      throw new BadRequestException('AI 응답을 파싱하지 못했습니다');
+    }
+  }
+
   /** 데일리 평가 — 업무설명 ↔ 노트/보고 ↔ 진행률% 일치도 한줄평 */
   async dailyReview(userId: string, date: string) {
     const d = new Date(date);

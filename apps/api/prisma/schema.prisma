@@ -288,6 +288,21 @@ model Message {
   createdAt DateTime @default(now())
 }
 
+// 회의 (구글밋 영상·트랜스크립트 기반)
+model Meeting {
+  id             String   @id @default(cuid())
+  title          String   @default("회의")
+  date           DateTime
+  driveFileId    String? // 구글드라이브 파일 ID(영상/트랜스크립트)
+  videoUrl       String? // 영상 링크
+  transcriptUrl  String? // 트랜스크립트 링크
+  transcriptText String? // 붙여넣은 트랜스크립트 원문(AI 요약 소스)
+  summary        String? // AI 회의 개요(마크다운)
+  createdAt      DateTime @default(now())
+
+  @@index([date])
+}
+
 model Notification {
   id        String   @id @default(cuid())
   user      User     @relation(fields: [userId], references: [id])
