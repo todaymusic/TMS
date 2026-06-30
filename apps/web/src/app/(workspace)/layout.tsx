@@ -1,4 +1,5 @@
 import Sidebar from "@/components/Sidebar";
+import NotificationCenter from "@/components/NotificationCenter";
 
 export default function WorkspaceLayout({
   children,
@@ -9,6 +10,7 @@ export default function WorkspaceLayout({
     <div className="app">
       <Sidebar />
       <main className="main">{children}</main>
+      <NotificationCenter />
     </div>
   );
 }

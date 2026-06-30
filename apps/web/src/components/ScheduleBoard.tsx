@@ -41,6 +41,18 @@ export default function ScheduleBoard({
   const [editing, setEditing] = useState<ScheduleBlock | null>(null);
   const [review, setReview] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
+  // 현재 시각(분) — 30초마다 갱신 → 줄이 내려감
+  const [nowMin, setNowMin] = useState(() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  });
+  useEffect(() => {
+    const id = setInterval(() => {
+      const d = new Date();
+      setNowMin(d.getHours() * 60 + d.getMinutes());
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const startMin = toMin(workStart || "09:00");
   const endMin = toMin(workEnd || "18:00");
@@ -134,6 +146,28 @@ export default function ScheduleBoard({
       ))}
     </div>
   );
+  const showNow = nowMin >= startMin && nowMin <= endMin;
+  const NowLine = ({ label = false }: { label?: boolean }) =>
+    showNow ? (
+      <div
+        style={{
+          position: "absolute",
+          top: yOf(nowMin),
+          left: 0,
+          right: 0,
+          borderTop: "2px solid #dc2626",
+          zIndex: 6,
+        }}
+      >
+        <span style={{ position: "absolute", left: -3, top: -4, width: 7, height: 7, borderRadius: "50%", background: "#dc2626" }} />
+        {label && (
+          <span style={{ position: "absolute", right: 2, top: -8, background: "#dc2626", color: "#fff", fontSize: 9, fontWeight: 700, padding: "0 5px", borderRadius: 4 }}>
+            지금 {toHHMM(nowMin)}
+          </span>
+        )}
+      </div>
+    ) : null;
+
   const Grid = () =>
     hours.map((m) => (
       <div
@@ -199,6 +233,7 @@ export default function ScheduleBoard({
             style={{ position: "relative", height: H, border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-2,#fafafa)" }}
           >
             <Grid />
+            <NowLine label />
             {blocks.map((b) => {
               const top = yOf(b.startMin);
               const h = Math.max((b.endMin - b.startMin) * scale, 16);
@@ -228,6 +263,7 @@ export default function ScheduleBoard({
           <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, textAlign: "center" }}>✅ 실제</div>
           <div style={{ position: "relative", height: H, border: "1px solid var(--border)", borderRadius: 8 }}>
             <Grid />
+            <NowLine />
             {actual.map(({ t, s, e }) => {
               const top = yOf(s);
               const h = Math.max((Math.min(e, endMin) - s) * scale, 16);
