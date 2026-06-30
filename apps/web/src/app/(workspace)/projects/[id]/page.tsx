@@ -84,6 +84,7 @@ export default async function ProjectDetail({
           </div>
           <Kanban
             projectId={project.id}
+            projectName={project.name}
             initial={project.tasks}
             members={[...project.owners, ...project.participants].map((m) => ({
               id: m.user.id,

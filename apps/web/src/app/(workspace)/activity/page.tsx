@@ -407,7 +407,10 @@ function ActivityInner() {
               {fromOthers.map((t) => (
                 <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8 }}>
                   <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>{PRI[t.priority].label}</span>
-                  <span style={{ flex: 1, cursor: "pointer" }} onClick={() => setDetailId(t.id)}>{t.title}</span>
+                  <span style={{ flex: 1, cursor: "pointer" }} onClick={() => setDetailId(t.id)}>
+                    {t.project && <span style={{ color: "var(--text-3)", fontSize: 11.5 }}>({t.project.name}) </span>}
+                    {t.title}
+                  </span>
                   <span style={{ fontSize: 11, color: "var(--text-3)" }}>{t.assigner?.name}↗</span>
                   <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
                   <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
@@ -480,7 +483,12 @@ function ActivityInner() {
                       >
                         {PRI[it.priority].label}
                       </span>
-                      <span className={`ct${st === "done" ? " s" : ""}`}>{it.title}</span>
+                      <span className={`ct${st === "done" ? " s" : ""}`}>
+                        {it.project && (
+                          <span style={{ color: "var(--text-3)", fontSize: 11.5 }}>({it.project.name}) </span>
+                        )}
+                        {it.title}
+                      </span>
                       <span className="meta">{output}</span>
                       {isSelf && it.status === "todo" && (
                         <button className="btn sm" onClick={(e) => { e.stopPropagation(); start(it.id); }} disabled={busy === it.id}>
