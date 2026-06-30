@@ -54,8 +54,9 @@ enum ProjectRole {
 }
 
 enum LeaveType {
-  annual // 연차
-  half // 반차
+  annual // 연차 (-1)
+  half // 반차 (-0.5)
+  quarter // 반반차 (-0.25)
   sick // 병가
   etc // 기타
 }
@@ -73,6 +74,7 @@ model User {
   name          String
   password      String? // bcrypt 해시 (이메일+비번 로그인). 기존 행은 null 허용
   isAdmin       Boolean    @default(false) // 슈퍼유저(관리자) 권한
+  leaveBalance  Float      @default(0) // 연차 잔여(일). 관리자가 기입, 승인 시 자동 차감
   dept          String? // 부서
   role          String? // 직책
   avatarColor   String     @default("#4f46e5")

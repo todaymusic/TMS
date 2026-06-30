@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsEnum,
   IsHexColor,
+  IsNumber,
   IsOptional,
   IsString,
 } from 'class-validator';
@@ -38,4 +39,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsBoolean()
   isAdmin?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  leaveBalance?: number;
 }

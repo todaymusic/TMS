@@ -1,8 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { LeaveStatus } from '../../generated/prisma/enums';
+import { LeaveStatus, LeaveType } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLeaveDto } from './dto/create-leave.dto';
 import { UpdateLeaveStatusDto } from './dto/update-leave-status.dto';
+
+// 종류별 연차 차감(일): 연차 1 / 반차 0.5 / 반반차 0.25 / 병가·기타 0
+const DEDUCT: Record<LeaveType, number> = {
+  annual: 1,
+  half: 0.5,
+  quarter: 0.25,
+  sick: 0,
+  etc: 0,
+};
 
 @Injectable()
 export class LeavesService {
@@ -32,11 +41,30 @@ export class LeavesService {
   }
 
   async updateStatus(id: string, dto: UpdateLeaveStatusDto) {
-    await this.ensureExists(id);
-    return this.prisma.leave.update({
+    const leave = await this.prisma.leave.findUnique({ where: { id } });
+    if (!leave) throw new NotFoundException(`Leave ${id} not found`);
+
+    // requested → approved 전이 시에만 연차 잔여 차감(중복 방지)
+    const willDeduct =
+      dto.status === LeaveStatus.approved &&
+      leave.status !== LeaveStatus.approved &&
+      DEDUCT[leave.type] > 0;
+
+    const updateLeave = this.prisma.leave.update({
       where: { id },
       data: { status: dto.status },
     });
+
+    if (!willDeduct) return updateLeave;
+
+    const [updated] = await this.prisma.$transaction([
+      updateLeave,
+      this.prisma.user.update({
+        where: { id: leave.userId },
+        data: { leaveBalance: { decrement: DEDUCT[leave.type] } },
+      }),
+    ]);
+    return updated;
   }
 
   async remove(id: string) {
