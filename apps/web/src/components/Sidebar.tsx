@@ -36,11 +36,29 @@ export default function Sidebar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
 
   const status = user?.status ?? "off";
   useEffect(() => {
     setMsg(user?.statusMessage ?? "");
   }, [user?.statusMessage]);
+
+  // 채팅 안읽음 수 폴링
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    const poll = () =>
+      api
+        .get<{ count: number }>(`/chat/unread?userId=${user.id}`)
+        .then((r) => alive && setChatUnread(r.count))
+        .catch(() => {});
+    void poll();
+    const id = setInterval(poll, 20000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [user, pathname]);
 
   async function changeStatus(s: UserStatus) {
     if (!user) return;
@@ -63,14 +81,37 @@ export default function Sidebar() {
     }
   }
 
-  const item = (href: string, Icon: typeof Calendar, label: string) => (
+  const item = (href: string, Icon: typeof Calendar, label: string, badge = 0) => (
     <Link
       key={href}
       href={href}
-      title={label}
+      title={badge > 0 ? `${label} · 안읽음 ${badge}` : label}
       className={`nav-item${pathname.startsWith(href) ? " active" : ""}`}
+      style={{ position: "relative" }}
     >
       <Icon size={24} strokeWidth={2} />
+      {badge > 0 && (
+        <span
+          style={{
+            position: "absolute",
+            top: 4,
+            right: 4,
+            minWidth: 17,
+            height: 17,
+            padding: "0 4px",
+            borderRadius: 9,
+            background: "#dc2626",
+            color: "#fff",
+            fontSize: 10,
+            fontWeight: 700,
+            display: "grid",
+            placeItems: "center",
+            border: "2px solid var(--ink)",
+          }}
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </Link>
   );
 
@@ -83,7 +124,7 @@ export default function Sidebar() {
       {NAV.map((n) => item(n.href, n.icon, n.label))}
 
       <div className="nav-div" />
-      {item("/dm", MessageCircle, "DM / 채팅")}
+      {item("/dm", MessageCircle, "DM / 채팅", chatUnread)}
       {item("/settings", Settings, "설정")}
 
       <div className="status-box" style={{ position: "relative", marginTop: "auto" }}>

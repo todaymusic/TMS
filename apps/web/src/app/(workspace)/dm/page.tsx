@@ -35,6 +35,8 @@ export default function DmPage() {
   const [reply, setReply] = useState<ChatMessage | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [mentionQ, setMentionQ] = useState<string | null>(null);
+  const [chSearch, setChSearch] = useState(""); // 채널 검색
+  const [msgSearch, setMsgSearch] = useState(""); // 대화 내 메시지 검색
 
   // 그룹 만들기 모달
   const [groupOpen, setGroupOpen] = useState(false);
@@ -87,6 +89,20 @@ export default function DmPage() {
 
   const selChannel = channels.find((c) => c.id === selId);
   const memberPool = selChannel?.members.filter((m) => m.id !== me?.id) ?? [];
+
+  // 채널 검색(제목·마지막 메시지·멤버 이름)
+  const cq = chSearch.trim().toLowerCase();
+  const visibleChannels = cq
+    ? channels.filter(
+        (ch) =>
+          channelTitle(ch, me?.id).toLowerCase().includes(cq) ||
+          (ch.lastMessage?.content ?? "").toLowerCase().includes(cq) ||
+          ch.members.some((m) => m.name.toLowerCase().includes(cq)),
+      )
+    : channels;
+  // 대화 내 메시지 검색
+  const mq = msgSearch.trim().toLowerCase();
+  const visibleMsgs = mq ? msgs.filter((m) => m.content.toLowerCase().includes(mq)) : msgs;
 
   async function send() {
     if (!me || !selId || !text.trim()) return;
@@ -168,7 +184,7 @@ export default function DmPage() {
         <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16, height: "calc(100vh - 150px)" }}>
           {/* 좌: 채널 목록 */}
           <div className="card" style={{ padding: 12, overflow: "auto" }}>
-            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
               <button className="btn sm" style={{ flex: 1 }} onClick={openBroadcast}>
                 📢 전체
               </button>
@@ -176,9 +192,19 @@ export default function DmPage() {
                 ＋ 그룹
               </button>
             </div>
+            <input
+              className="inp"
+              placeholder="🔍 대화·사람·내용 검색"
+              value={chSearch}
+              onChange={(e) => setChSearch(e.target.value)}
+              style={{ width: "100%", marginBottom: 8, fontSize: 13, padding: "6px 10px" }}
+            />
 
-            {channels.length > 0 && <div className="nav-label">대화</div>}
-            {channels.map((ch) => (
+            {visibleChannels.length > 0 && <div className="nav-label">대화</div>}
+            {cq && visibleChannels.length === 0 && (
+              <div style={{ fontSize: 12, color: "var(--text-3)", padding: "4px 8px" }}>검색 결과 없음</div>
+            )}
+            {visibleChannels.map((ch) => (
               <div
                 key={ch.id}
                 onClick={() => openChannel(ch.id)}
@@ -283,11 +309,24 @@ export default function DmPage() {
                   </div>
                 )}
 
+                {/* 메시지 검색 */}
+                <div style={{ padding: "8px 14px", borderBottom: "1px solid var(--border)" }}>
+                  <input
+                    className="inp"
+                    placeholder="🔍 이 대화에서 메시지 검색"
+                    value={msgSearch}
+                    onChange={(e) => setMsgSearch(e.target.value)}
+                    style={{ width: "100%", fontSize: 13, padding: "5px 10px" }}
+                  />
+                </div>
+
                 <div className="thread" style={{ flex: 1, overflow: "auto", padding: 18 }}>
-                  {msgs.length === 0 && (
-                    <div style={{ color: "var(--text-3)", fontSize: 13 }}>첫 메시지를 남겨보세요.</div>
+                  {visibleMsgs.length === 0 && (
+                    <div style={{ color: "var(--text-3)", fontSize: 13 }}>
+                      {mq ? "검색 결과가 없어요." : "첫 메시지를 남겨보세요."}
+                    </div>
                   )}
-                  {msgs.map((m) => (
+                  {visibleMsgs.map((m) => (
                     <div key={m.id} className="msg" style={{ position: "relative" }}>
                       <div className="avatar" style={{ background: m.user.avatarColor }}>
                         {m.user.name.slice(0, 1)}
