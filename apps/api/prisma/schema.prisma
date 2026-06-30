@@ -93,6 +93,23 @@ model User {
   attendances       Attendance[]
   leaves            Leave[]
   notifications     Notification[]
+  dmSent            DirectMessage[]      @relation("dmFrom")
+  dmReceived        DirectMessage[]      @relation("dmTo")
+}
+
+// 1:1 다이렉트 메시지
+model DirectMessage {
+  id        String   @id @default(cuid())
+  from      User     @relation("dmFrom", fields: [fromId], references: [id])
+  fromId    String
+  to        User     @relation("dmTo", fields: [toId], references: [id])
+  toId      String
+  content   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([fromId, toId])
+  @@index([toId, fromId])
 }
 
 model Project {
