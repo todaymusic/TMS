@@ -70,6 +70,10 @@ export class CreateTaskDto {
 
   @IsOptional()
   @IsInt()
+  dayOrder?: number;
+
+  @IsOptional()
+  @IsInt()
   @Min(0)
   @Max(100)
   progress?: number;
