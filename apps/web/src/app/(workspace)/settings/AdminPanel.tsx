@@ -6,12 +6,14 @@ import { api, type Leave, type LeaveType, type User } from "@/lib/api";
 const LEAVE_LABEL: Record<LeaveType, string> = {
   annual: "연차",
   half: "반차",
+  quarter: "반반차",
   sick: "병가",
   etc: "기타",
 };
 const STATUS_KO = { requested: "신청됨", approved: "승인", rejected: "반려" } as const;
 
 type LeaveWithUser = Leave & { user: { id: string; name: string; avatarColor: string } };
+type Edit = { dept: string; role: string; bal: string };
 
 function fmt(d: string) {
   const dt = new Date(d);
@@ -21,8 +23,7 @@ function fmt(d: string) {
 export default function AdminPanel() {
   const [users, setUsers] = useState<User[]>([]);
   const [leaves, setLeaves] = useState<LeaveWithUser[]>([]);
-  // 멤버 편집 로컬 상태 {userId: {dept, role}}
-  const [edits, setEdits] = useState<Record<string, { dept: string; role: string }>>({});
+  const [edits, setEdits] = useState<Record<string, Edit>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
   async function load() {
@@ -33,7 +34,12 @@ export default function AdminPanel() {
     setUsers(u);
     setLeaves(l);
     setEdits(
-      Object.fromEntries(u.map((x) => [x.id, { dept: x.dept ?? "", role: x.role ?? "" }])),
+      Object.fromEntries(
+        u.map((x) => [
+          x.id,
+          { dept: x.dept ?? "", role: x.role ?? "", bal: String(x.leaveBalance ?? 0) },
+        ]),
+      ),
     );
   }
   useEffect(() => {
@@ -46,6 +52,7 @@ export default function AdminPanel() {
       await api.patch(`/users/${id}`, {
         dept: edits[id]?.dept || undefined,
         role: edits[id]?.role || undefined,
+        leaveBalance: Number(edits[id]?.bal ?? 0) || 0,
       });
       await load();
     } finally {
@@ -56,18 +63,83 @@ export default function AdminPanel() {
     setBusy(id);
     try {
       await api.patch(`/leaves/${id}/status`, { status });
-      await load();
+      await load(); // 승인 시 잔여 차감 → 멤버 목록도 갱신
     } finally {
       setBusy(null);
     }
   }
 
+  const upd = (id: string, patch: Partial<Edit>) =>
+    setEdits((c) => ({ ...c, [id]: { ...c[id], ...patch } }));
+
   return (
-    <>
-      {/* 전체 휴가 관리 */}
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+        gap: 16,
+        alignItems: "start",
+      }}
+    >
+      {/* 멤버 관리 */}
       <div className="card" style={{ padding: 22 }}>
         <div className="sec-title mb16">
-          <span className="em">🗂️</span> 전 멤버 휴가 (관리자)
+          <span className="em">🧑‍💼</span> 멤버 관리 (직책 · 담당업무 · 연차잔여)
+        </div>
+        <div style={{ display: "grid", gap: 12 }}>
+          {users.map((u) => (
+            <div key={u.id} style={{ display: "grid", gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div className="avatar" style={{ background: u.avatarColor, width: 26, height: 26, fontSize: 12 }}>
+                  {u.name.slice(0, 1)}
+                </div>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{u.name}</span>
+                {u.isAdmin && <span className="pill teal">관리자</span>}
+                <button
+                  className="btn sm"
+                  style={{ marginLeft: "auto" }}
+                  onClick={() => saveMember(u.id)}
+                  disabled={busy === u.id}
+                >
+                  저장
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <input
+                  className="inp"
+                  placeholder="담당업무"
+                  value={edits[u.id]?.dept ?? ""}
+                  onChange={(e) => upd(u.id, { dept: e.target.value })}
+                  style={{ flex: 1, minWidth: 90 }}
+                />
+                <input
+                  className="inp"
+                  placeholder="직책"
+                  value={edits[u.id]?.role ?? ""}
+                  onChange={(e) => upd(u.id, { role: e.target.value })}
+                  style={{ flex: 1, minWidth: 80 }}
+                />
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <input
+                    className="inp"
+                    type="number"
+                    step="0.25"
+                    value={edits[u.id]?.bal ?? "0"}
+                    onChange={(e) => upd(u.id, { bal: e.target.value })}
+                    style={{ width: 70 }}
+                  />
+                  <span style={{ fontSize: 12, color: "var(--text-3)" }}>일</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 전 멤버 휴가 */}
+      <div className="card" style={{ padding: 22 }}>
+        <div className="sec-title mb16">
+          <span className="em">🗂️</span> 전 멤버 휴가 (승인/반려)
         </div>
         <div style={{ display: "grid", gap: 8 }}>
           {leaves.length === 0 && (
@@ -79,22 +151,19 @@ export default function AdminPanel() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
+                gap: 8,
                 padding: "10px 12px",
                 border: "1px solid var(--border)",
                 borderRadius: 8,
                 fontSize: 13,
+                flexWrap: "wrap",
               }}
             >
-              <div className="avatar" style={{ background: lv.user.avatarColor, width: 26, height: 26, fontSize: 12 }}>
-                {lv.user.name.slice(0, 1)}
-              </div>
-              <span style={{ fontWeight: 600, minWidth: 48 }}>{lv.user.name}</span>
+              <span style={{ fontWeight: 600, minWidth: 44 }}>{lv.user.name}</span>
               <span className="pill gray">{LEAVE_LABEL[lv.type]}</span>
               <span>
-                {fmt(lv.startDate)} – {fmt(lv.endDate)}
+                {fmt(lv.startDate)}–{fmt(lv.endDate)}
               </span>
-              {lv.reason && <span style={{ color: "var(--text-3)" }}>· {lv.reason}</span>}
               <span style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
                 <span
                   className="pill"
@@ -121,44 +190,10 @@ export default function AdminPanel() {
             </div>
           ))}
         </div>
-      </div>
-
-      {/* 멤버 직책/담당업무 수정 */}
-      <div className="card" style={{ padding: 22 }}>
-        <div className="sec-title mb16">
-          <span className="em">🧑‍💼</span> 멤버 관리 (직책 · 담당업무)
-        </div>
-        <div style={{ display: "grid", gap: 10 }}>
-          {users.map((u) => (
-            <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <div className="avatar" style={{ background: u.avatarColor, width: 28, height: 28, fontSize: 12 }}>
-                {u.name.slice(0, 1)}
-              </div>
-              <span style={{ fontWeight: 600, minWidth: 48, fontSize: 13 }}>
-                {u.name}
-                {u.isAdmin && <span className="pill teal" style={{ marginLeft: 4 }}>관리자</span>}
-              </span>
-              <input
-                className="inp"
-                placeholder="담당업무(부서)"
-                value={edits[u.id]?.dept ?? ""}
-                onChange={(e) => setEdits((c) => ({ ...c, [u.id]: { ...c[u.id], dept: e.target.value } }))}
-                style={{ flex: 1, minWidth: 120 }}
-              />
-              <input
-                className="inp"
-                placeholder="직책"
-                value={edits[u.id]?.role ?? ""}
-                onChange={(e) => setEdits((c) => ({ ...c, [u.id]: { ...c[u.id], role: e.target.value } }))}
-                style={{ flex: 1, minWidth: 100 }}
-              />
-              <button className="btn sm" onClick={() => saveMember(u.id)} disabled={busy === u.id}>
-                저장
-              </button>
-            </div>
-          ))}
+        <div className="hint" style={{ marginTop: 10 }}>
+          승인 시 연차 −1 / 반차 −0.5 / 반반차 −0.25 자동 차감됩니다.
         </div>
       </div>
-    </>
+    </div>
   );
 }

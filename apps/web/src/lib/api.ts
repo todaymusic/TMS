@@ -141,7 +141,7 @@ export type Message = {
   user: UserBrief;
 };
 
-export type LeaveType = "annual" | "half" | "sick" | "etc";
+export type LeaveType = "annual" | "half" | "quarter" | "sick" | "etc";
 export type LeaveStatus = "requested" | "approved" | "rejected";
 
 export type Leave = {
@@ -164,6 +164,7 @@ export type User = {
   status: UserStatus;
   statusMessage: string | null;
   isAdmin?: boolean;
+  leaveBalance?: number;
 };
 
 // SPEC: 진행률 경과별 색상 코딩 (0⚪ / ~25🔴 / ~50🟠 / ~75🟡 / ~99🔵 / 100🟢)

@@ -8,6 +8,7 @@ import AdminPanel from "./AdminPanel";
 const LEAVE_LABEL: Record<LeaveType, string> = {
   annual: "연차",
   half: "반차",
+  quarter: "반반차",
   sick: "병가",
   etc: "기타",
 };
@@ -118,9 +119,9 @@ export default function SettingsPage() {
           <div className="sub">내 계정 · 비밀번호 · 휴가</div>
         </div>
       </div>
-      <div className="content" style={{ display: "grid", gap: 16, maxWidth: 560 }}>
+      <div className="content" style={{ display: "grid", gap: 16 }}>
         {user?.isAdmin && (
-          <div style={{ display: "grid", gap: 16 }}>
+          <div style={{ display: "grid", gap: 12 }}>
             <div className="pill teal" style={{ width: "fit-content" }}>
               👑 관리자 모드
             </div>
@@ -128,79 +129,22 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* 내 계정 */}
-        <div className="card" style={{ padding: 22 }}>
-          <div className="sec-title mb16">
-            <span className="em">👤</span> 내 계정
-          </div>
-          {user ? (
-            <div style={{ display: "grid", gap: 8, fontSize: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div className="avatar" style={{ background: user.avatarColor, width: 40, height: 40 }}>
-                  {user.name.slice(0, 1)}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 700 }}>
-                    {user.name}{" "}
-                    <span style={{ color: "var(--text-3)", fontWeight: 400, fontSize: 12 }}>
-                      {user.dept ?? ""} {user.role ?? ""}
-                    </span>
-                  </div>
-                  <div style={{ color: "var(--text-3)", fontSize: 12 }}>{user.email}</div>
-                </div>
-                <span className="pill gray" style={{ marginLeft: "auto" }}>
-                  {STATUS_LABEL[user.status]}
-                </span>
-              </div>
-              <button className="btn" style={{ marginTop: 6, color: "#dc2626", width: 120 }} onClick={logout}>
-                🚪 로그아웃
-              </button>
-            </div>
-          ) : (
-            <div style={{ color: "var(--text-3)", fontSize: 13 }}>불러오는 중…</div>
-          )}
-        </div>
-
-        {/* 비밀번호 변경 */}
-        <div className="card" style={{ padding: 22 }}>
-          <div className="sec-title mb16">
-            <span className="em">🔒</span> 비밀번호 변경
-          </div>
-          <div className="assign-field">
-            <label>현재 비밀번호</label>
-            <input className="inp" type="password" value={cur} onChange={(e) => setCur(e.target.value)} />
-          </div>
-          <div className="assign-field">
-            <label>새 비밀번호</label>
-            <input className="inp" type="password" value={nw} onChange={(e) => setNw(e.target.value)} />
-          </div>
-          <div className="assign-field">
-            <label>새 비밀번호 확인</label>
-            <input className="inp" type="password" value={nw2} onChange={(e) => setNw2(e.target.value)} />
-          </div>
-          {pwMsg && (
-            <div className="field-hint" style={{ color: pwMsg.startsWith("✅") ? "#16a34a" : "#dc2626" }}>
-              {pwMsg}
-            </div>
-          )}
-          <button className="btn primary" onClick={changePassword} disabled={pwBusy}>
-            {pwBusy ? "변경 중…" : "비밀번호 변경"}
-          </button>
-        </div>
-
-        {/* 휴가 */}
-        <div className="card" style={{ padding: 22 }}>
-          <div className="sec-title mb16">
-            <span className="em">🌴</span> 내 휴가 (연차 · 반차)
+        {/* 내 휴가 (잔여 + 신청 + 목록) */}
+        <div className="card" style={{ padding: 22, maxWidth: 600 }}>
+          <div className="sec-title mb16" style={{ display: "flex", alignItems: "center" }}>
+            <span className="em">🌴</span> 내 휴가
+            <span className="pill teal" style={{ marginLeft: "auto", fontSize: 13 }}>
+              남은 연차 {user?.leaveBalance ?? 0}일
+            </span>
           </div>
 
-          {/* 신청 폼 */}
           <div className="assign-field" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <label>종류</label>
               <select className="inp" value={lvType} onChange={(e) => setLvType(e.target.value as LeaveType)}>
-                <option value="annual">연차</option>
-                <option value="half">반차</option>
+                <option value="annual">연차 (−1)</option>
+                <option value="half">반차 (−0.5)</option>
+                <option value="quarter">반반차 (−0.25)</option>
                 <option value="sick">병가</option>
                 <option value="etc">기타</option>
               </select>
@@ -226,8 +170,10 @@ export default function SettingsPage() {
           <button className="btn primary" onClick={requestLeave} disabled={lvBusy}>
             {lvBusy ? "신청 중…" : "휴가 신청"}
           </button>
+          <div className="hint" style={{ marginTop: 6 }}>
+            관리자 승인 시 종류별로 잔여 연차에서 자동 차감됩니다.
+          </div>
 
-          {/* 목록 */}
           <div style={{ marginTop: 16, display: "grid", gap: 8 }}>
             {leaves.length === 0 && (
               <div style={{ color: "var(--text-3)", fontSize: 13 }}>신청한 휴가가 없습니다.</div>
@@ -265,6 +211,66 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* 내 계정 */}
+        <div className="card" style={{ padding: 22, maxWidth: 600 }}>
+          <div className="sec-title mb16">
+            <span className="em">👤</span> 내 계정
+          </div>
+          {user ? (
+            <div style={{ display: "grid", gap: 8, fontSize: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div className="avatar" style={{ background: user.avatarColor, width: 40, height: 40 }}>
+                  {user.name.slice(0, 1)}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700 }}>
+                    {user.name}{" "}
+                    <span style={{ color: "var(--text-3)", fontWeight: 400, fontSize: 12 }}>
+                      {user.dept ?? ""} {user.role ?? ""}
+                    </span>
+                  </div>
+                  <div style={{ color: "var(--text-3)", fontSize: 12 }}>{user.email}</div>
+                </div>
+                <span className="pill gray" style={{ marginLeft: "auto" }}>
+                  {STATUS_LABEL[user.status]}
+                </span>
+              </div>
+              <button className="btn" style={{ marginTop: 6, color: "#dc2626", width: 120 }} onClick={logout}>
+                🚪 로그아웃
+              </button>
+            </div>
+          ) : (
+            <div style={{ color: "var(--text-3)", fontSize: 13 }}>불러오는 중…</div>
+          )}
+        </div>
+
+        {/* 비밀번호 변경 */}
+        <div className="card" style={{ padding: 22, maxWidth: 600 }}>
+          <div className="sec-title mb16">
+            <span className="em">🔒</span> 비밀번호 변경
+          </div>
+          <div className="assign-field">
+            <label>현재 비밀번호</label>
+            <input className="inp" type="password" value={cur} onChange={(e) => setCur(e.target.value)} />
+          </div>
+          <div className="assign-field">
+            <label>새 비밀번호</label>
+            <input className="inp" type="password" value={nw} onChange={(e) => setNw(e.target.value)} />
+          </div>
+          <div className="assign-field">
+            <label>새 비밀번호 확인</label>
+            <input className="inp" type="password" value={nw2} onChange={(e) => setNw2(e.target.value)} />
+          </div>
+          {pwMsg && (
+            <div className="field-hint" style={{ color: pwMsg.startsWith("✅") ? "#16a34a" : "#dc2626" }}>
+              {pwMsg}
+            </div>
+          )}
+          <button className="btn primary" onClick={changePassword} disabled={pwBusy}>
+            {pwBusy ? "변경 중…" : "비밀번호 변경"}
+          </button>
         </div>
       </div>
     </>

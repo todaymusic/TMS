@@ -22,6 +22,7 @@ type LeaveCal = Leave & { user: { id: string; name: string; avatarColor: string 
 const LEAVE_LABEL: Record<LeaveType, string> = {
   annual: "연차",
   half: "반차",
+  quarter: "반반차",
   sick: "병가",
   etc: "기타",
 };
