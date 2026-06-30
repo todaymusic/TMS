@@ -100,6 +100,10 @@ export type Task = {
   reportLink: string | null;
   videoLink: string | null;
   statusMemo: string | null;
+  reworkCount?: number;
+  reworkReason?: string | null;
+  grade?: string | null;
+  aiReview?: string | null;
   dueDate: string | null;
   plannedDate?: string | null;
   acceptedAt?: string | null;

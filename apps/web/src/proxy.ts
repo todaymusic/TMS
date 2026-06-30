@@ -23,6 +23,7 @@ export const config = {
     "/projects/:path*",
     "/calendar/:path*",
     "/activity/:path*",
+    "/requests/:path*",
     "/settings/:path*",
     "/dm/:path*",
     "/login",

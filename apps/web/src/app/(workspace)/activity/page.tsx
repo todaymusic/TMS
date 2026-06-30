@@ -7,6 +7,7 @@ import { api, progressColor, type Leave, type Priority, type Task, type User } f
 import { useAuth } from "@/lib/auth";
 import TaskDetailModal from "@/components/TaskDetailModal";
 import ScheduleBoard from "@/components/ScheduleBoard";
+import ReviewModal from "./ReviewModal";
 
 const PRI: Record<Priority, { label: string; bg: string; fg: string }> = {
   urgent: { label: "긴급", bg: "#fee2e2", fg: "#b91c1c" },
@@ -84,6 +85,7 @@ function ActivityInner() {
   // 날짜 이동(어제/오늘/내일) · 상세 모달 · 퇴근 알림
   const [dayOffset, setDayOffset] = useState(0);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [reviewTask, setReviewTask] = useState<Task | null>(null);
   const [endAlarm, setEndAlarm] = useState(false);
 
   async function load() {
@@ -390,7 +392,10 @@ function ActivityInner() {
           <div className="card">
             <div className="panel-head">
               <div className="sec-title"><span className="em">📤</span> 요청한 업무</div>
-              <span className="count" style={{ marginLeft: "auto" }}>{assignedOut.length}</span>
+              <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+                {isSelf && <a href="/requests" className="btn sm">📊 전체·분석</a>}
+                <span className="count">{assignedOut.length}</span>
+              </span>
             </div>
             <div style={{ padding: "6px 14px 14px", display: "grid", gap: 6 }}>
               {assignedOut.length === 0 && (
@@ -407,6 +412,9 @@ function ActivityInner() {
                     <span className="avatar" style={{ background: t.assignee?.avatarColor ?? "#999", width: 20, height: 20, fontSize: 10 }}>{t.assignee?.name?.slice(0, 1) ?? "?"}</span>
                     {t.assignee?.name ?? "미지정"}
                   </span>
+                  {t.reworkCount ? (
+                    <span className="pill" style={{ background: "#ffedd5", color: "#c2410c", fontSize: 10 }}>재작업 #{t.reworkCount}</span>
+                  ) : null}
                   {t.acceptedAt ? (
                     <span className="pill" style={{ background: "#dcfce7", color: "#15803d", fontSize: 10 }}>수락 {mdd(t.acceptedAt)}</span>
                   ) : (
@@ -414,6 +422,11 @@ function ActivityInner() {
                   )}
                   <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
                   <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
+                  {t.grade ? (
+                    <span className="pill" style={{ background: "#ede9fe", color: "#6d28d9", fontSize: 10, fontWeight: 700 }}>🏅 {t.grade}</span>
+                  ) : stateOf(t) === "done" && isSelf ? (
+                    <button className="btn primary sm" onClick={(e) => { e.stopPropagation(); setReviewTask(t); }}>🔍 검수</button>
+                  ) : null}
                   {t.statusMemo && (
                     <div style={{ flexBasis: "100%", fontSize: 11.5, color: "var(--text-3)", paddingLeft: 2 }}>📝 {t.statusMemo}</div>
                   )}
@@ -433,8 +446,11 @@ function ActivityInner() {
                 <div style={{ color: "var(--text-3)", fontSize: 13 }}>없음</div>
               )}
               {fromOthers.map((t) => (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8, flexWrap: "wrap" }}>
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "7px 8px", border: `1px solid ${t.reworkCount ? "#fb923c" : "var(--border)"}`, borderRadius: 8, flexWrap: "wrap", background: t.reworkCount ? "#fff7ed" : undefined }}>
                   <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>{PRI[t.priority].label}</span>
+                  {t.reworkCount ? (
+                    <span className="pill" style={{ background: "#c2410c", color: "#fff", fontSize: 10, fontWeight: 700 }}>재작업 #{t.reworkCount}</span>
+                  ) : null}
                   <span style={{ flex: 1, minWidth: 80, cursor: "pointer" }} onClick={() => setDetailId(t.id)}>
                     {t.project && <span style={{ color: "var(--text-3)", fontSize: 11.5 }}>({t.project.name}) </span>}
                     {t.title}
@@ -462,6 +478,11 @@ function ActivityInner() {
                       )}
                     </>
                   )}
+                  {t.reworkCount && t.reworkReason ? (
+                    <div style={{ flexBasis: "100%", fontSize: 11.5, color: "#c2410c", paddingLeft: 2 }}>
+                      🔁 재작업 사유: {t.reworkReason}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -750,6 +771,17 @@ function ActivityInner() {
           onClose={() => setDetailId(null)}
           onSaved={() => {
             setDetailId(null);
+            void load();
+          }}
+        />
+      )}
+
+      {reviewTask && (
+        <ReviewModal
+          task={reviewTask}
+          onClose={() => setReviewTask(null)}
+          onDone={() => {
+            setReviewTask(null);
             void load();
           }}
         />
