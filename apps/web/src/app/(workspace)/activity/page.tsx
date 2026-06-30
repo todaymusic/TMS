@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { api, type Priority, type Task, type User } from "@/lib/api";
+import { api, type Leave, type Priority, type Task, type User } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import TaskDetailModal from "@/components/TaskDetailModal";
 
@@ -17,6 +17,14 @@ const PRI: Record<Priority, { label: string; bg: string; fg: string }> = {
 function ymd(d: Date) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
+
+const LEAVE_KO: Record<string, string> = {
+  annual: "연차",
+  half: "반차",
+  quarter: "반반차",
+  sick: "병가",
+  etc: "기타",
+};
 
 type Notif = {
   id: string;
@@ -60,6 +68,8 @@ function ActivityInner() {
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [notifs, setNotifs] = useState<Notif[]>([]);
+  const [userLeaves, setUserLeaves] = useState<Leave[]>([]);
+  const [targetUser, setTargetUser] = useState<User | null>(null);
   const [targetName, setTargetName] = useState("");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -79,15 +89,22 @@ function ActivityInner() {
     if (!me || !targetId) return;
     setErr(null);
     try {
-      const t = await api.get<Task[]>(`/tasks?assigneeId=${targetId}`);
+      const [t, lv] = await Promise.all([
+        api.get<Task[]>(`/tasks?assigneeId=${targetId}`),
+        api.get<Leave[]>(`/leaves?userId=${targetId}`),
+      ]);
       setTasks(t);
+      setUserLeaves(lv);
       if (isSelf) {
         setNotifs(await api.get<Notif[]>(`/notifications?userId=${me.id}`));
         setTargetName(me.name);
+        setTargetUser(me);
       } else {
-        // 다른 사람 보기: 이름 조회
+        // 다른 사람 보기: 이름·근무시간 조회
         const users = await api.get<User[]>("/users");
-        setTargetName(users.find((u) => u.id === targetId)?.name ?? "");
+        const u = users.find((x) => x.id === targetId) ?? null;
+        setTargetUser(u);
+        setTargetName(u?.name ?? "");
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "불러오기 실패");
@@ -181,6 +198,28 @@ function ActivityInner() {
     .map((t) => ({ t, days: Math.ceil((new Date(t.dueDate!).getTime() - now.getTime()) / 86400000) }))
     .filter((x) => x.days <= 2)
     .sort((a, b) => a.days - b.days);
+
+  // ───── 스케줄(오늘): 계획 + 실제 + 근태 ─────
+  const todayKey = ymd(new Date());
+  const work = { start: targetUser?.workStart, end: targetUser?.workEnd };
+  const todayLeave = userLeaves.find((l) => {
+    if (l.status !== "approved") return false;
+    const s = new Date(l.startDate); s.setHours(0, 0, 0, 0);
+    const e = new Date(l.endDate); e.setHours(23, 59, 59, 999);
+    return now >= s && now <= e;
+  });
+  const actual = tasks
+    .filter((t) => t.startedAt && ymd(new Date(t.startedAt)) === todayKey)
+    .map((t) => ({ t, s: new Date(t.startedAt!), e: t.endedAt ? new Date(t.endedAt) : null }))
+    .sort((a, b) => a.s.getTime() - b.s.getTime());
+  const concurrent = (i: number) => {
+    const a = actual[i];
+    const ae = a.e ?? now;
+    return actual.some((b, j) => j !== i && a.s < (b.e ?? now) && b.s < ae);
+  };
+  const planned = tasks.filter(
+    (t) => stateOf(t) === "todo" && (!t.dueDate || ymd(new Date(t.dueDate)) === todayKey),
+  );
 
   // 퇴근 5분 전 알림(본인, workEnd 설정 시, 앱 열려있을 때)
   useEffect(() => {
@@ -402,30 +441,60 @@ function ActivityInner() {
             <div className="card">
               <div className="panel-head">
                 <div className="sec-title">
-                  <span className="em">📅</span> 스케줄 — 마감 예정
+                  <span className="em">📅</span> 오늘 스케줄
                 </div>
+                <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>
+                  {work.start && work.end ? `근무 ${work.start}~${work.end}` : "근무시간 미설정"}
+                </span>
               </div>
-              <div style={{ padding: 14, display: "grid", gap: 8 }}>
-                {tasks.filter((t) => t.dueDate && stateOf(t) !== "done").length === 0 && (
-                  <div style={{ color: "var(--text-3)", fontSize: 13 }}>예정된 마감이 없어요.</div>
+              <div style={{ padding: 14, display: "grid", gap: 14 }}>
+                {todayLeave && (
+                  <div style={{ padding: "8px 12px", background: "#dcfce7", borderRadius: 8, fontSize: 13, color: "#15803d" }}>
+                    🌴 오늘은 휴가 ({LEAVE_KO[todayLeave.type]})
+                  </div>
                 )}
-                {tasks
-                  .filter((t) => t.dueDate && stateOf(t) !== "done")
-                  .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
-                  .map((t) => (
-                    <div
-                      key={t.id}
-                      style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}
-                    >
-                      <span className="pill gray" style={{ minWidth: 64, textAlign: "center" }}>
-                        {new Date(t.dueDate!).getMonth() + 1}/{new Date(t.dueDate!).getDate()}
-                      </span>
-                      <span style={{ flex: 1 }}>{t.title}</span>
-                      <span className="meta" style={{ fontSize: 12, color: "var(--text-3)" }}>
-                        {stateOf(t) === "doing" ? "진행중" : "대기"}
-                      </span>
+
+                {/* 계획 */}
+                <div>
+                  <div className="field-lbl" style={{ marginBottom: 6 }}>📋 계획 (오늘 할 일)</div>
+                  {planned.length === 0 ? (
+                    <div style={{ color: "var(--text-3)", fontSize: 13 }}>계획된 할 일이 없어요.</div>
+                  ) : (
+                    <div style={{ display: "grid", gap: 5 }}>
+                      {planned.map((t) => (
+                        <div key={t.id} onClick={() => setDetailId(t.id)} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+                          <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>
+                            {PRI[t.priority].label}
+                          </span>
+                          <span style={{ flex: 1 }}>{t.title}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                </div>
+
+                {/* 실제 */}
+                <div>
+                  <div className="field-lbl" style={{ marginBottom: 6 }}>✅ 실제 (처리 타임라인)</div>
+                  {actual.length === 0 ? (
+                    <div style={{ color: "var(--text-3)", fontSize: 13 }}>아직 시작한 업무가 없어요.</div>
+                  ) : (
+                    <div style={{ display: "grid", gap: 6 }}>
+                      {actual.map((a, i) => (
+                        <div key={a.t.id} onClick={() => setDetailId(a.t.id)} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, cursor: "pointer" }}>
+                          <span className="pill gray" style={{ minWidth: 92, textAlign: "center", fontSize: 11 }}>
+                            {hm(a.s.toISOString())}~{a.e ? hm(a.e.toISOString()) : "진행"}
+                          </span>
+                          <span style={{ flex: 1 }}>{a.t.title}</span>
+                          {concurrent(i) && (
+                            <span className="pill" style={{ background: "#fef9c3", color: "#a16207", fontSize: 10 }}>⚡동시</span>
+                          )}
+                          {!a.e && <span className="pill" style={{ background: "#dbeafe", color: "#1d4ed8", fontSize: 10 }}>진행중</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
