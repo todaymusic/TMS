@@ -152,6 +152,19 @@ function ActivityInner() {
     }
   }
 
+  // '오늘 하기' 토글 (plannedDate=오늘 / 해제)
+  async function planToday(id: string, on: boolean) {
+    setBusy(id);
+    try {
+      await api.patch(`/tasks/${id}`, {
+        plannedDate: on ? new Date().toISOString() : "",
+      });
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function markRead(id: string) {
     setNotifs((cur) => cur.map((n) => (n.id === id ? { ...n, read: true } : n)));
     try {
@@ -183,15 +196,27 @@ function ActivityInner() {
     todo: tasks.filter((t) => stateOf(t) === "todo").length,
   };
 
-  // 선택 날짜(마감일 기준) 할일
+  // 선택 날짜
   const selDate = new Date();
   selDate.setDate(selDate.getDate() + dayOffset);
   const selKey = ymd(selDate);
   const dayLabel = dayOffset === 0 ? "오늘" : dayOffset === -1 ? "어제" : dayOffset === 1 ? "내일" : `${selDate.getMonth() + 1}/${selDate.getDate()}`;
-  const dayTasks = tasks.filter((t) => {
-    if (t.dueDate) return ymd(new Date(t.dueDate)) === selKey;
-    return dayOffset === 0; // 마감일 없는 건 오늘에 표시
-  });
+  const ddays = (t: Task) =>
+    t.dueDate ? Math.ceil((new Date(t.dueDate).getTime() - Date.now()) / 86400000) : Infinity;
+  // 오늘의 업무 = 오늘로 옮긴 것 + 마감 D-3이내/지난 미완료(자동) + 진행중. 마감 급한 순.
+  const dayTasks = tasks
+    .filter((t) => {
+      const planned = t.plannedDate && ymd(new Date(t.plannedDate)) === selKey;
+      if (dayOffset === 0) {
+        return (
+          planned ||
+          stateOf(t) === "doing" ||
+          (stateOf(t) !== "done" && ddays(t) <= 3)
+        );
+      }
+      return planned || (t.dueDate && ymd(new Date(t.dueDate)) === selKey);
+    })
+    .sort((a, b) => ddays(a) - ddays(b));
   const doingCount = tasks.filter((t) => stateOf(t) === "doing").length;
 
   // 마감 임박(2일 이내 미완료)
@@ -224,7 +249,8 @@ function ActivityInner() {
     (t) => stateOf(t) === "todo" && (!t.dueDate || ymd(new Date(t.dueDate)) === todayKey),
   );
 
-  // 내가(=대상이) 남에게 부여한 업무
+  // 내가 부여한 업무: 나에게 / 남에게
+  const assignedSelf = assigned.filter((t) => t.assignee?.id === targetId);
   const assignedOut = assigned.filter((t) => t.assignee?.id !== targetId);
   const stLabel = (t: Task) =>
     stateOf(t) === "done" ? "완료" : stateOf(t) === "doing" ? "진행중" : "대기";
@@ -303,13 +329,76 @@ function ActivityInner() {
           </div>
         )}
 
+        {/* 내가 부여한 업무 — 맨 위, 나에게 / 남에게 분리 */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+            gap: 16,
+            marginBottom: 18,
+          }}
+        >
+          {/* 🙋 내가 나에게 부여 */}
+          <div className="card">
+            <div className="panel-head">
+              <div className="sec-title"><span className="em">🙋</span> {isSelf ? "내가 나에게" : "본인에게"} 부여한 업무</div>
+              <span className="count" style={{ marginLeft: "auto" }}>{assignedSelf.length}</span>
+            </div>
+            <div style={{ padding: "6px 14px 14px", display: "grid", gap: 6 }}>
+              {assignedSelf.length === 0 && (
+                <div style={{ color: "var(--text-3)", fontSize: 13 }}>없음</div>
+              )}
+              {assignedSelf.map((t) => (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8 }}>
+                  <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>{PRI[t.priority].label}</span>
+                  <span style={{ flex: 1, cursor: "pointer" }} onClick={() => setDetailId(t.id)}>{t.title}</span>
+                  <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
+                  <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
+                  {isSelf && stateOf(t) !== "done" && (
+                    t.plannedDate && ymd(new Date(t.plannedDate)) === ymd(new Date()) ? (
+                      <button className="btn sm" onClick={() => planToday(t.id, false)} disabled={busy === t.id}>오늘 빼기</button>
+                    ) : (
+                      <button className="btn sm" onClick={() => planToday(t.id, true)} disabled={busy === t.id}>↓ 오늘 하기</button>
+                    )
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 📤 남에게 부여 */}
+          <div className="card">
+            <div className="panel-head">
+              <div className="sec-title"><span className="em">📤</span> {isSelf ? "남에게" : `${targetName || "이 사람"}이 남에게`} 부여한 업무</div>
+              <span className="count" style={{ marginLeft: "auto" }}>{assignedOut.length}</span>
+            </div>
+            <div style={{ padding: "6px 14px 14px", display: "grid", gap: 6 }}>
+              {assignedOut.length === 0 && (
+                <div style={{ color: "var(--text-3)", fontSize: 13 }}>대시보드 → 업무 부여로 추가</div>
+              )}
+              {assignedOut.map((t) => (
+                <div key={t.id} onClick={() => setDetailId(t.id)} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8 }}>
+                  <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>{PRI[t.priority].label}</span>
+                  <span style={{ flex: 1 }}>{t.title}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-2)" }}>
+                    <span className="avatar" style={{ background: t.assignee?.avatarColor ?? "#999", width: 20, height: 20, fontSize: 10 }}>{t.assignee?.name?.slice(0, 1) ?? "?"}</span>
+                    {t.assignee?.name ?? "미지정"}
+                  </span>
+                  <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
+                  <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div className="act-cols">
           {/* 좌: 체크리스트 + 멘션 피드 */}
           <div style={{ display: "grid", gap: 18 }}>
             <div className="card">
               <div className="panel-head">
                 <div className="sec-title">
-                  <span className="em">✅</span> 할일 체크리스트
+                  <span className="em">✅</span> 오늘의 업무
                 </div>
                 <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
                   <button className="btn sm" onClick={() => setDayOffset((d) => d - 1)}>◀</button>
@@ -330,7 +419,7 @@ function ActivityInner() {
                 )}
                 {!loading && dayTasks.length === 0 && (
                   <div style={{ padding: 18, color: "var(--text-3)", fontSize: 13 }}>
-                    {dayLabel} 마감 업무가 없어요.
+                    {dayLabel} 할 업무가 없어요. 위에서 “↓ 오늘 하기”로 추가하세요.
                   </div>
                 )}
                 {dayTasks.map((it) => {
@@ -396,43 +485,6 @@ function ActivityInner() {
               </div>
               <div className="hint" style={{ padding: "0 18px 16px" }}>
                 체크(시작) → 대시보드에 진행중 표시 · 종료 → 완료 처리
-              </div>
-            </div>
-
-            {/* 내가 부여한 업무 */}
-            <div className="card">
-              <div className="panel-head">
-                <div className="sec-title">
-                  <span className="em">📤</span> {isSelf ? "내가" : `${targetName || "이 사람"}님이`} 부여한 업무
-                </div>
-                <span className="count" style={{ marginLeft: "auto" }}>{assignedOut.length}</span>
-              </div>
-              <div style={{ padding: "6px 14px 14px", display: "grid", gap: 6 }}>
-                {assignedOut.length === 0 && (
-                  <div style={{ color: "var(--text-3)", fontSize: 13 }}>
-                    아직 부여한 업무가 없어요. (대시보드 → 업무 부여)
-                  </div>
-                )}
-                {assignedOut.map((t) => (
-                  <div
-                    key={t.id}
-                    onClick={() => setDetailId(t.id)}
-                    style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "6px 8px", border: "1px solid var(--border)", borderRadius: 8 }}
-                  >
-                    <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>
-                      {PRI[t.priority].label}
-                    </span>
-                    <span style={{ flex: 1 }}>{t.title}</span>
-                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-2)" }}>
-                      <span className="avatar" style={{ background: t.assignee?.avatarColor ?? "#999", width: 20, height: 20, fontSize: 10 }}>
-                        {t.assignee?.name?.slice(0, 1) ?? "?"}
-                      </span>
-                      {t.assignee?.name ?? "미지정"}
-                    </span>
-                    <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
-                    <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
-                  </div>
-                ))}
               </div>
             </div>
 

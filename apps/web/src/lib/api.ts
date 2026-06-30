@@ -98,6 +98,7 @@ export type Task = {
   videoLink: string | null;
   statusMemo: string | null;
   dueDate: string | null;
+  plannedDate?: string | null;
   startedAt?: string | null;
   endedAt?: string | null;
   progress: number;
