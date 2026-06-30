@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   api,
@@ -296,7 +297,13 @@ export default function DashboardPage() {
                   const task = doingByUser.get(m.id);
                   const pct = task?.progress ?? 0;
                   return (
-                    <div className="member" key={m.id}>
+                    <Link
+                      className="member"
+                      key={m.id}
+                      href={`/activity?userId=${m.id}`}
+                      title={`${m.name}님의 활동 보기`}
+                      style={{ cursor: "pointer", textDecoration: "none", color: "inherit" }}
+                    >
                       <div className="member-top">
                         <div className="member-av">
                           <div
@@ -331,7 +338,7 @@ export default function DashboardPage() {
                           {pct}%
                         </span>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
             </div>

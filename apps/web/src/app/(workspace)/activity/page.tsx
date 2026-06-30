@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api, type Task } from "@/lib/api";
+import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { api, type Task, type User } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 type Notif = {
@@ -37,10 +39,16 @@ function ago(d: string): string {
   return `${Math.floor(h / 24)}일 전`;
 }
 
-export default function ActivityPage() {
+function ActivityInner() {
   const { user: me } = useAuth();
+  const sp = useSearchParams();
+  const viewId = sp.get("userId");
+  const isSelf = !viewId || viewId === me?.id;
+  const targetId = viewId || me?.id;
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [notifs, setNotifs] = useState<Notif[]>([]);
+  const [targetName, setTargetName] = useState("");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -52,15 +60,19 @@ export default function ActivityPage() {
   const [endBusy, setEndBusy] = useState(false);
 
   async function load() {
-    if (!me) return;
+    if (!me || !targetId) return;
     setErr(null);
     try {
-      const [t, n] = await Promise.all([
-        api.get<Task[]>(`/tasks?assigneeId=${me.id}`),
-        api.get<Notif[]>(`/notifications?userId=${me.id}`),
-      ]);
+      const t = await api.get<Task[]>(`/tasks?assigneeId=${targetId}`);
       setTasks(t);
-      setNotifs(n);
+      if (isSelf) {
+        setNotifs(await api.get<Notif[]>(`/notifications?userId=${me.id}`));
+        setTargetName(me.name);
+      } else {
+        // 다른 사람 보기: 이름 조회
+        const users = await api.get<User[]>("/users");
+        setTargetName(users.find((u) => u.id === targetId)?.name ?? "");
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "불러오기 실패");
     } finally {
@@ -71,7 +83,7 @@ export default function ActivityPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me]);
+  }, [me, viewId]);
 
   async function start(id: string) {
     setBusy(id);
@@ -139,14 +151,21 @@ export default function ActivityPage() {
     <>
       <div className="topbar">
         <div>
-          <h1>내 활동</h1>
+          <h1>{isSelf ? "내 활동" : `${targetName || "팀원"}님의 활동`}</h1>
           <div className="sub">
-            {me ? `${me.name} · ` : ""}오늘 할일 · 멘션 피드 · 스케줄
+            {isSelf
+              ? `${me?.name ?? ""} · 오늘 할일 · 멘션 피드 · 스케줄`
+              : "오늘 할일 · 스케줄 · 업무 통계 (읽기 전용)"}
           </div>
         </div>
       </div>
 
       <div className="content">
+        {!isSelf && (
+          <Link href="/dashboard" className="detail-back">
+            ← 대시보드로
+          </Link>
+        )}
         {err && (
           <div className="card" style={{ color: "#dc2626", marginBottom: 16 }}>
             API 오류: {err}
@@ -188,7 +207,7 @@ export default function ActivityPage() {
                       />
                       <span className={`ct${st === "done" ? " s" : ""}`}>{it.title}</span>
                       <span className="meta">{output}</span>
-                      {st === "todo" && (
+                      {isSelf && st === "todo" && (
                         <button
                           className="btn sm"
                           onClick={() => start(it.id)}
@@ -200,6 +219,7 @@ export default function ActivityPage() {
                       {st === "doing" && (
                         <>
                           <span className="meta">⏱ {hm(it.dueDate)}</span>
+                          {isSelf && (
                           <button
                             className="btn sm"
                             onClick={() => openEnd(it)}
@@ -207,6 +227,7 @@ export default function ActivityPage() {
                           >
                             종료
                           </button>
+                          )}
                         </>
                       )}
                       {st === "done" && <span className="meta">완료 ✓</span>}
@@ -219,7 +240,8 @@ export default function ActivityPage() {
               </div>
             </div>
 
-            {/* 멘션 & 소통 피드 */}
+            {/* 멘션 & 소통 피드 (본인만) */}
+            {isSelf && (
             <div className="card">
               <div className="panel-head">
                 <div className="sec-title">
@@ -260,25 +282,45 @@ export default function ActivityPage() {
                 );
               })}
             </div>
+            )}
           </div>
 
-          {/* 우: 내 스케줄 + 이번 주 통계 */}
+          {/* 우: 스케줄 + 업무 통계 */}
           <div style={{ display: "grid", gap: 18 }}>
             <div className="card">
               <div className="panel-head">
                 <div className="sec-title">
-                  <span className="em">📅</span> 내 스케줄 — 오늘
+                  <span className="em">📅</span> 스케줄 — 마감 예정
                 </div>
               </div>
-              <div style={{ padding: 18, color: "var(--text-3)", fontSize: 13 }}>
-                스케줄 기능은 준비 중이에요. (캘린더/스케줄 데이터 모델 추후)
+              <div style={{ padding: 14, display: "grid", gap: 8 }}>
+                {tasks.filter((t) => t.dueDate && stateOf(t) !== "done").length === 0 && (
+                  <div style={{ color: "var(--text-3)", fontSize: 13 }}>예정된 마감이 없어요.</div>
+                )}
+                {tasks
+                  .filter((t) => t.dueDate && stateOf(t) !== "done")
+                  .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+                  .map((t) => (
+                    <div
+                      key={t.id}
+                      style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}
+                    >
+                      <span className="pill gray" style={{ minWidth: 64, textAlign: "center" }}>
+                        {new Date(t.dueDate!).getMonth() + 1}/{new Date(t.dueDate!).getDate()}
+                      </span>
+                      <span style={{ flex: 1 }}>{t.title}</span>
+                      <span className="meta" style={{ fontSize: 12, color: "var(--text-3)" }}>
+                        {stateOf(t) === "doing" ? "진행중" : "대기"}
+                      </span>
+                    </div>
+                  ))}
               </div>
             </div>
 
             <div className="card">
               <div className="panel-head">
                 <div className="sec-title">
-                  <span className="em">📊</span> 내 업무 통계
+                  <span className="em">📊</span> 업무 통계
                 </div>
               </div>
               <div className="stats-row">
@@ -380,5 +422,13 @@ export default function ActivityPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function ActivityPage() {
+  return (
+    <Suspense fallback={null}>
+      <ActivityInner />
+    </Suspense>
   );
 }
