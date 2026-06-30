@@ -104,6 +104,24 @@ export default function ActivityPage() {
     }
   }
 
+  async function markRead(id: string) {
+    setNotifs((cur) => cur.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    try {
+      await api.patch(`/notifications/${id}/read`, {});
+    } catch {
+      /* noop */
+    }
+  }
+  async function markAllRead() {
+    if (!me) return;
+    setNotifs((cur) => cur.map((n) => ({ ...n, read: true })));
+    try {
+      await api.patch(`/notifications/read-all?userId=${me.id}`, {});
+    } catch {
+      /* noop */
+    }
+  }
+
   const stateOf = (t: Task): "todo" | "doing" | "done" =>
     t.status === "done" || t.status === "completed_pending"
       ? "done"
@@ -207,8 +225,15 @@ export default function ActivityPage() {
                 <div className="sec-title">
                   <span className="em">📨</span> 멘션 &amp; 소통 피드
                 </div>
-                <span className="count">
-                  새 알림 {notifs.filter((n) => !n.read).length}
+                <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+                  <span className="count">
+                    새 알림 {notifs.filter((n) => !n.read).length}
+                  </span>
+                  {notifs.some((n) => !n.read) && (
+                    <button className="btn sm" onClick={markAllRead}>
+                      모두 읽음
+                    </button>
+                  )}
                 </span>
               </div>
               {!loading && notifs.length === 0 && (
@@ -219,7 +244,13 @@ export default function ActivityPage() {
               {notifs.map((n) => {
                 const ic = FEED_IC[n.type] ?? FEED_IC.system;
                 return (
-                  <div key={n.id} className={`feed-item${n.read ? "" : " unread"}`}>
+                  <div
+                    key={n.id}
+                    className={`feed-item${n.read ? "" : " unread"}`}
+                    onClick={() => !n.read && markRead(n.id)}
+                    style={{ cursor: n.read ? "default" : "pointer" }}
+                    title={n.read ? "" : "클릭하면 읽음 처리"}
+                  >
                     <div className={`feed-ic ${ic.cls}`}>{ic.ic}</div>
                     <div>
                       <div className="feed-txt">{n.content}</div>
