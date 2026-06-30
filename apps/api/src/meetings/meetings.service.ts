@@ -37,6 +37,18 @@ export class MeetingsService {
     });
   }
 
+  /** 진단: 폴더 파일 목록(이름·형식·날짜) */
+  async driveFiles(folderId?: string) {
+    const fid = folderId || process.env.MEETINGS_DRIVE_FOLDER_ID;
+    if (!fid) throw new BadRequestException('폴더 ID 없음');
+    const files = await this.drive.listFolder(fid);
+    return files.map((f) => ({
+      name: f.name,
+      mimeType: f.mimeType,
+      createdTime: f.createdTime,
+    }));
+  }
+
   /** 구글드라이브 폴더에서 회의(트랜스크립트) 자동 가져오기 */
   async syncFromDrive(folderId?: string, authorId?: string) {
     const fid = folderId || process.env.MEETINGS_DRIVE_FOLDER_ID;
@@ -47,10 +59,14 @@ export class MeetingsService {
     }
     const files = await this.drive.listFolder(fid);
     const videos = files.filter((f) => f.mimeType?.startsWith('video/'));
+    // 트랜스크립트 = 구글문서/텍스트 OR 이름에 트랜스크립트류 키워드 포함(형식 무관)
+    const TR_RE = /transcript|gemini|기록|메모|스크립트|노트|회의록|대화|받아쓰기/i;
     const docs = files.filter(
       (f) =>
-        f.mimeType === 'application/vnd.google-apps.document' ||
-        f.mimeType?.startsWith('text/'),
+        !f.mimeType?.startsWith('video/') &&
+        (f.mimeType === 'application/vnd.google-apps.document' ||
+          f.mimeType?.startsWith('text/') ||
+          TR_RE.test(f.name ?? '')),
     );
 
     const usedVideos = new Set<string>();
@@ -105,7 +121,38 @@ export class MeetingsService {
       });
       imported++;
     }
-    return { imported, skipped, total: docs.length, videos: videos.length };
+
+    // 트랜스크립트 없이 영상만 있는 회의(예: 옛 녹화)도 등록
+    let videoOnly = 0;
+    for (const v of videos) {
+      if (usedVideos.has(v.id!)) continue;
+      const exists = await this.prisma.meeting.findFirst({ where: { driveFileId: v.id! } });
+      if (exists) {
+        skipped++;
+        continue;
+      }
+      const title =
+        baseName(v.name)
+          .replace(/\s*\(.*$/, '') // " (2026_06_09 ...)" 제거
+          .trim() || '회의';
+      await this.create({
+        title,
+        date: v.createdTime ?? new Date().toISOString(),
+        driveFileId: v.id!,
+        videoUrl: v.webViewLink ?? undefined,
+        announce: false,
+        authorId,
+      });
+      videoOnly++;
+    }
+
+    return {
+      imported,
+      videoOnly,
+      skipped,
+      docs: docs.length,
+      videos: videos.length,
+    };
   }
 
   findAll() {

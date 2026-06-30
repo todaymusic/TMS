@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { ReactionDto } from './dto/reaction.dto';
 
@@ -10,7 +11,10 @@ const msgInclude = {
 
 @Injectable()
 export class MessagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: PushService,
+  ) {}
 
   async create(dto: CreateMessageDto) {
     const message = await this.prisma.message.create({
@@ -29,16 +33,16 @@ export class MessagesService {
         where: { id: dto.projectId },
         select: { name: true },
       });
-      await this.prisma.notification.createMany({
-        data: dto.mentions
-          .filter((uid) => uid !== dto.userId)
-          .map((uid) => ({
-            userId: uid,
-            type: 'mention',
-            content: `${message.user.name}님이 «${project?.name ?? '프로젝트'}»에서 회원님을 멘션했습니다`,
-            link: `/projects/${dto.projectId}`,
-          })),
-      });
+      const notifs = dto.mentions
+        .filter((uid) => uid !== dto.userId)
+        .map((uid) => ({
+          userId: uid,
+          type: 'mention',
+          content: `${message.user.name}님이 «${project?.name ?? '프로젝트'}»에서 회원님을 멘션했습니다`,
+          link: `/projects/${dto.projectId}`,
+        }));
+      await this.prisma.notification.createMany({ data: notifs });
+      await this.push.notifyMany(notifs);
     }
 
     return message;

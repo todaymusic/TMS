@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 
 const userSel = {
   select: { id: true, name: true, avatarColor: true, dept: true },
@@ -7,7 +8,10 @@ const userSel = {
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: PushService,
+  ) {}
 
   /** 내 채널 목록 (멤버·마지막 메시지·안읽음 수) */
   async listChannels(userId: string) {
@@ -200,6 +204,7 @@ export class ChatService {
       );
     if (notifs.length) {
       await this.prisma.notification.createMany({ data: notifs });
+      await this.push.notifyMany(notifs);
     }
     return msg;
   }

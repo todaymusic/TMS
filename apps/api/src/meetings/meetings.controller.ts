@@ -55,6 +55,12 @@ export class MeetingsController {
     return this.meetings.findAll();
   }
 
+  // 진단: 드라이브 폴더 파일 목록 (:id 보다 먼저 선언)
+  @Get('drive-files')
+  driveFiles(@Query('folderId') folderId?: string) {
+    return this.meetings.driveFiles(folderId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.meetings.findOne(id);

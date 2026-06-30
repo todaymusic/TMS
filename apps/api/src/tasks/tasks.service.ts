@@ -6,6 +6,7 @@ import {
 import { TaskStatus } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
+import { PushService } from '../push/push.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { EndTaskDto } from './dto/end-task.dto';
 import { QueryTaskDto } from './dto/query-task.dto';
@@ -22,6 +23,7 @@ export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
+    private readonly push: PushService,
   ) {}
 
   /** 완료 검수: AI 평가 생성(캐시) — 요청자가 검수창 열 때 */
@@ -58,14 +60,11 @@ export class TasksService {
       include: taskInclude,
     });
     if (t.assigneeId) {
+      const content = `🔁 «${t.title}» 재작업 요청(#${updated.reworkCount}) — 사유: ${reason}`;
       await this.prisma.notification.create({
-        data: {
-          userId: t.assigneeId,
-          type: 'task',
-          content: `🔁 «${t.title}» 재작업 요청(#${updated.reworkCount}) — 사유: ${reason}`,
-          link: '/activity',
-        },
+        data: { userId: t.assigneeId, type: 'task', content, link: '/activity' },
       });
+      await this.push.sendToUser(t.assigneeId, { title: 'TMS 알림', body: content, url: '/activity' });
     }
     return updated;
   }
@@ -79,14 +78,11 @@ export class TasksService {
       include: taskInclude,
     });
     if (t.assigneeId) {
+      const content = `🏅 «${t.title}» 업무가 승인됐어요 — 등급: ${grade}`;
       await this.prisma.notification.create({
-        data: {
-          userId: t.assigneeId,
-          type: 'task',
-          content: `🏅 «${t.title}» 업무가 승인됐어요 — 등급: ${grade}`,
-          link: '/activity',
-        },
+        data: { userId: t.assigneeId, type: 'task', content, link: '/activity' },
       });
+      await this.push.sendToUser(t.assigneeId, { title: 'TMS 알림', body: content, url: '/activity' });
     }
     return updated;
   }
@@ -162,14 +158,11 @@ export class TasksService {
       include: taskInclude,
     });
     if (task.assignerId && task.assignerId !== task.assigneeId) {
+      const content = `${updated.assignee?.name ?? '담당자'}님이 «${task.title}» 업무를 수락했습니다`;
       await this.prisma.notification.create({
-        data: {
-          userId: task.assignerId,
-          type: 'task',
-          content: `${updated.assignee?.name ?? '담당자'}님이 «${task.title}» 업무를 수락했습니다`,
-          link: '/activity',
-        },
+        data: { userId: task.assignerId, type: 'task', content, link: '/activity' },
       });
+      await this.push.sendToUser(task.assignerId, { title: 'TMS 알림', body: content, url: '/activity' });
     }
     return updated;
   }
@@ -263,14 +256,11 @@ export class TasksService {
     });
     // 요청자에게 완료 알림
     if (task.assignerId && task.assignerId !== task.assigneeId) {
+      const content = `✅ ${updated.assignee?.name ?? '담당자'}님이 «${task.title}» 업무를 완료했습니다 — 검수해주세요`;
       await this.prisma.notification.create({
-        data: {
-          userId: task.assignerId,
-          type: 'task',
-          content: `✅ ${updated.assignee?.name ?? '담당자'}님이 «${task.title}» 업무를 완료했습니다 — 검수해주세요`,
-          link: '/activity',
-        },
+        data: { userId: task.assignerId, type: 'task', content, link: '/activity' },
       });
+      await this.push.sendToUser(task.assignerId, { title: 'TMS 알림', body: content, url: '/activity' });
     }
     return updated;
   }

@@ -29,16 +29,36 @@ export class DriveService {
     return this.client;
   }
 
-  /** 폴더 내 파일 목록 (하위폴더 제외) */
+  /** 폴더 내 파일 목록 (하위폴더까지 재귀 + 페이지네이션) */
   async listFolder(folderId: string) {
     const drive = this.getClient();
-    const res = await drive.files.list({
-      q: `'${folderId}' in parents and trashed = false`,
-      fields: 'files(id, name, mimeType, webViewLink, createdTime)',
-      pageSize: 200,
-      orderBy: 'createdTime desc',
-    });
-    return res.data.files ?? [];
+    const all: drive_v3.Schema$File[] = [];
+    const stack = [folderId];
+    const seen = new Set<string>();
+    while (stack.length) {
+      const fid = stack.pop()!;
+      if (seen.has(fid)) continue;
+      seen.add(fid);
+      let pageToken: string | undefined;
+      do {
+        const res = await drive.files.list({
+          q: `'${fid}' in parents and trashed = false`,
+          fields: 'nextPageToken, files(id, name, mimeType, webViewLink, createdTime)',
+          pageSize: 200,
+          pageToken,
+          orderBy: 'createdTime desc',
+        });
+        for (const f of res.data.files ?? []) {
+          if (f.mimeType === 'application/vnd.google-apps.folder') {
+            if (f.id) stack.push(f.id);
+          } else {
+            all.push(f);
+          }
+        }
+        pageToken = res.data.nextPageToken ?? undefined;
+      } while (pageToken);
+    }
+    return all;
   }
 
   /** 구글 문서/텍스트 파일 → 본문 텍스트 */
