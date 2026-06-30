@@ -13,6 +13,22 @@ function driveLink(fileId?: string | null) {
   return fileId ? `https://drive.google.com/file/d/${fileId}/view` : null;
 }
 
+// 파일명에서 회의 날짜 추출: "2026/06/30 13:36" "2026_06_17 15_00" "2026-06-09" 등
+function parseDriveDate(name?: string | null): string | null {
+  if (!name) return null;
+  const m = name.match(/(20\d\d)[/_-](\d{1,2})[/_-](\d{1,2})(?:[ T](\d{1,2})[:_](\d{2}))?/);
+  if (!m) return null;
+  const [, y, mo, d, h, mi] = m;
+  const dt = new Date(
+    Number(y),
+    Number(mo) - 1,
+    Number(d),
+    h ? Number(h) : 9,
+    mi ? Number(mi) : 0,
+  );
+  return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
+}
+
 @Injectable()
 export class MeetingsService {
   constructor(
@@ -111,7 +127,11 @@ export class MeetingsService {
       if (video?.id) usedVideos.add(video.id);
 
       await this.create({
-        date: tr.createdTime ?? new Date().toISOString(),
+        date:
+          parseDriveDate(tr.name) ??
+          parseDriveDate(video?.name) ??
+          tr.createdTime ??
+          new Date().toISOString(),
         driveFileId: tr.id!,
         videoUrl: video?.webViewLink ?? undefined,
         transcriptUrl: tr.webViewLink ?? undefined,
@@ -131,13 +151,13 @@ export class MeetingsService {
         skipped++;
         continue;
       }
+      // 제목: 괄호 안 회의명 우선, 없으면 " - " 앞부분
+      const paren = v.name?.match(/\(([^)]+)\)/);
       const title =
-        baseName(v.name)
-          .replace(/\s*\(.*$/, '') // " (2026_06_09 ...)" 제거
-          .trim() || '회의';
+        (paren ? paren[1] : (v.name ?? '').split(/\s*[-–]\s*/)[0])?.trim() || '회의';
       await this.create({
         title,
-        date: v.createdTime ?? new Date().toISOString(),
+        date: parseDriveDate(v.name) ?? v.createdTime ?? new Date().toISOString(),
         driveFileId: v.id!,
         videoUrl: v.webViewLink ?? undefined,
         announce: false,
