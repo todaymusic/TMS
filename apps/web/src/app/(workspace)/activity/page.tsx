@@ -235,7 +235,7 @@ function ActivityInner() {
   const soon = tasks
     .filter((t) => t.dueDate && stateOf(t) !== "done")
     .map((t) => ({ t, days: Math.ceil((new Date(t.dueDate!).getTime() - now.getTime()) / 86400000) }))
-    .filter((x) => x.days <= 2)
+    .filter((x) => x.days <= 3)
     .sort((a, b) => a.days - b.days);
 
   // ───── 스케줄(오늘): 계획 + 실제 + 근태 ─────

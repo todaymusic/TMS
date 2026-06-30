@@ -120,41 +120,39 @@ export default function AdminPanel() {
                 </div>
                 <span style={{ fontWeight: 600, fontSize: 13 }}>{u.name}</span>
                 {u.isAdmin && <span className="pill teal">관리자</span>}
-                <button
-                  className="btn sm"
-                  style={{ marginLeft: "auto" }}
-                  onClick={() => saveMember(u.id)}
-                  disabled={busy === u.id}
-                >
-                  저장
-                </button>
               </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
                 <input
                   className="inp"
                   placeholder="담당업무"
                   value={edits[u.id]?.dept ?? ""}
                   onChange={(e) => upd(u.id, { dept: e.target.value })}
-                  style={{ flex: 1, minWidth: 90 }}
+                  style={{ flex: 1, minWidth: 0, padding: "6px 8px" }}
                 />
                 <input
                   className="inp"
                   placeholder="직책"
                   value={edits[u.id]?.role ?? ""}
                   onChange={(e) => upd(u.id, { role: e.target.value })}
-                  style={{ flex: 1, minWidth: 80 }}
+                  style={{ flex: 1, minWidth: 0, padding: "6px 8px" }}
                 />
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <input
-                    className="inp"
-                    type="number"
-                    step="0.25"
-                    value={edits[u.id]?.bal ?? "0"}
-                    onChange={(e) => upd(u.id, { bal: e.target.value })}
-                    style={{ width: 70 }}
-                  />
-                  <span style={{ fontSize: 12, color: "var(--text-3)" }}>일</span>
-                </div>
+                <input
+                  className="inp"
+                  type="number"
+                  step="0.25"
+                  title="연차 잔여(일)"
+                  value={edits[u.id]?.bal ?? "0"}
+                  onChange={(e) => upd(u.id, { bal: e.target.value })}
+                  style={{ width: 52, padding: "6px 6px", flexShrink: 0 }}
+                />
+                <button
+                  className="btn primary sm"
+                  style={{ flexShrink: 0, padding: "6px 12px" }}
+                  onClick={() => saveMember(u.id)}
+                  disabled={busy === u.id}
+                >
+                  저장
+                </button>
               </div>
             </div>
           ))}

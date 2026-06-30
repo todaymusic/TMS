@@ -136,7 +136,20 @@ export default function ScheduleBoard({
   );
   const Grid = () =>
     hours.map((m) => (
-      <div key={m} style={{ position: "absolute", top: yOf(m), left: 0, right: 0, borderTop: "1px dashed var(--border)" }} />
+      <div
+        key={m}
+        style={{
+          position: "absolute",
+          top: yOf(m),
+          left: 0,
+          right: 0,
+          borderTop: "1px solid #e5e7eb",
+        }}
+      >
+        <span style={{ position: "absolute", left: 3, top: 1, fontSize: 9, color: "#b0b0b0" }}>
+          {toHHMM(m)}
+        </span>
+      </div>
     ));
 
   return (

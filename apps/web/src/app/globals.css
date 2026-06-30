@@ -25,21 +25,17 @@ body {
 }
 
 /* ===== 레이아웃 ===== */
-.app { display: grid; grid-template-columns: 248px 1fr; height: 100vh; min-height: 600px; }
+.app { display: grid; grid-template-columns: 72px 1fr; height: 100vh; min-height: 600px; }
 
-/* 사이드바 */
-.sidebar { background: var(--ink); color: #c9c7c0; display: flex; flex-direction: column; padding: 18px 14px; gap: 4px; }
-.brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 16px; }
-.brand-mark { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg,#6366f1,#4f46e5); display: grid; place-items: center; font-weight: 800; color: #fff; font-size: 15px; box-shadow: 0 2px 10px rgba(79,70,229,.5); }
-.brand-name { color: #fff; font-weight: 700; font-size: 15px; letter-spacing: -.2px; }
-.brand-sub { color: #6f6d66; font-size: 11px; margin-top: 1px; }
-.nav-label { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; color: #6a6860; text-transform: uppercase; padding: 14px 10px 6px; }
-.nav-item { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; font-weight: 500; color: #c9c7c0; transition: background .14s, color .14s; user-select: none; text-decoration: none; }
-.nav-item .ic { width: 18px; text-align: center; font-size: 15px; opacity: .9; }
+/* 사이드바 — 아이콘 전용(축소) */
+.sidebar { background: var(--ink); color: #c9c7c0; display: flex; flex-direction: column; align-items: center; padding: 16px 8px; gap: 6px; }
+.brand { display: flex; align-items: center; justify-content: center; padding: 2px 0 14px; }
+.brand-mark { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg,#6366f1,#4f46e5); display: grid; place-items: center; font-weight: 800; color: #fff; font-size: 18px; box-shadow: 0 2px 12px rgba(79,70,229,.5); }
+.nav-item { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 13px; cursor: pointer; color: #b6b4ad; transition: background .14s, color .14s; user-select: none; text-decoration: none; }
 .nav-item:hover { background: var(--ink-2); color: #fff; }
 .nav-item.active { background: var(--ink-3); color: #fff; }
-.nav-item .badge { margin-left: auto; background: var(--primary); color: #fff; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 20px; }
-.nav-div { height: 1px; background: #34363f; margin: 12px 6px; }
+.nav-div { height: 1px; width: 36px; background: #34363f; margin: 8px 0; }
+.nav-label { font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--text-3); padding: 10px 4px 4px; }
 
 .status-box { margin-top: auto; background: var(--ink-2); border: 1px solid #34363f; border-radius: var(--radius); padding: 11px 12px; position: relative; cursor: pointer; }
 .status-box .lbl { font-size: 10.5px; color: #807d75; margin-bottom: 5px; }
@@ -152,10 +148,6 @@ textarea.inp { min-height: 64px; resize: vertical; line-height: 1.5; font-family
   .dash-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
-  .app { grid-template-columns: 64px 1fr; }
-  .brand-name, .brand-sub, .nav-label, .status-box .lbl, .status-now .txt, .status-now .car { display: none; }
-  .nav-item .label { display: none; }
-  .nav-item { justify-content: center; }
   .search { width: 160px; }
 }
 
