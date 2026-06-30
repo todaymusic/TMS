@@ -6,7 +6,10 @@ import {
   Param,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { IsBoolean, IsISO8601, IsOptional, IsString } from 'class-validator';
 import { MeetingsService } from './meetings.service';
 
@@ -60,6 +63,24 @@ export class MeetingsController {
   @Post()
   create(@Body() dto: CreateMeetingDto) {
     return this.meetings.create(dto);
+  }
+
+  // 즉석 회의 녹음 업로드 → STT → AI 요약 → 회의 저장
+  @Post('record')
+  @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: 80 * 1024 * 1024 } }))
+  record(
+    @UploadedFile() file: { buffer: Buffer; mimetype: string },
+    @Query('authorId') authorId?: string,
+  ) {
+    const mt = file?.mimetype ?? '';
+    const ext = mt.includes('webm')
+      ? 'webm'
+      : mt.includes('ogg')
+        ? 'ogg'
+        : mt.includes('mp4') || mt.includes('m4a')
+          ? 'm4a'
+          : 'wav';
+    return this.meetings.recordAndCreate(file.buffer, ext, authorId);
   }
 
   // 드라이브 폴더 동기화(기존/신규 회의 자동 가져오기)

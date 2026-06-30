@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ChatService } from '../chat/chat.service';
 import { DriveService } from './drive.service';
+import { SttService } from './stt.service';
 
 function driveLink(fileId?: string | null) {
   return fileId ? `https://drive.google.com/file/d/${fileId}/view` : null;
@@ -19,7 +20,22 @@ export class MeetingsService {
     private readonly ai: AiService,
     private readonly chat: ChatService,
     private readonly drive: DriveService,
+    private readonly stt: SttService,
   ) {}
+
+  /** 즉석 녹음 오디오 → STT → AI 제목/개요 → 회의 저장 */
+  async recordAndCreate(buffer: Buffer, ext: string, authorId?: string) {
+    const transcript = await this.stt.transcribe(buffer, ext);
+    if (!transcript.trim()) {
+      throw new BadRequestException('음성에서 텍스트를 추출하지 못했습니다');
+    }
+    return this.create({
+      date: new Date().toISOString(),
+      transcriptText: transcript,
+      announce: true,
+      authorId,
+    });
+  }
 
   /** 구글드라이브 폴더에서 회의(트랜스크립트) 자동 가져오기 */
   async syncFromDrive(folderId?: string, authorId?: string) {
