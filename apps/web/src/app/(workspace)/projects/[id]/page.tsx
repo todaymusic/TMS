@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AiSummaryCard from "./AiSummaryCard";
 import Kanban from "./Kanban";
+import ProjectCalendar from "./ProjectCalendar";
 import MembersEditor from "./MembersEditor";
 import ProjectThread from "./ProjectThread";
 import {
@@ -217,6 +218,13 @@ export default async function ProjectDetail({
             }))}
           />
         </div>
+
+        {/* 프로젝트 캘린더 (기간) */}
+        <ProjectCalendar
+          tasks={project.tasks}
+          startDate={project.startDate}
+          endDate={project.endDate}
+        />
       </div>
     </>
   );
