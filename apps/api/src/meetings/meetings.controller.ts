@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
 } from '@nestjs/common';
 import { IsBoolean, IsISO8601, IsOptional, IsString } from 'class-validator';
 import { MeetingsService } from './meetings.service';
@@ -59,6 +60,15 @@ export class MeetingsController {
   @Post()
   create(@Body() dto: CreateMeetingDto) {
     return this.meetings.create(dto);
+  }
+
+  // 드라이브 폴더 동기화(기존/신규 회의 자동 가져오기)
+  @Post('sync')
+  sync(
+    @Query('folderId') folderId?: string,
+    @Query('authorId') authorId?: string,
+  ) {
+    return this.meetings.syncFromDrive(folderId, authorId);
   }
 
   @Post(':id/summarize')

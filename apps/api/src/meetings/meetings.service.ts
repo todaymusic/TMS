@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ChatService } from '../chat/chat.service';
+import { DriveService } from './drive.service';
 
 function driveLink(fileId?: string | null) {
   return fileId ? `https://drive.google.com/file/d/${fileId}/view` : null;
@@ -13,7 +18,55 @@ export class MeetingsService {
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
     private readonly chat: ChatService,
+    private readonly drive: DriveService,
   ) {}
+
+  /** 구글드라이브 폴더에서 회의(트랜스크립트) 자동 가져오기 */
+  async syncFromDrive(folderId?: string, authorId?: string) {
+    const fid = folderId || process.env.MEETINGS_DRIVE_FOLDER_ID;
+    if (!fid) {
+      throw new BadRequestException(
+        '폴더 ID가 없습니다 (요청 folderId 또는 환경변수 MEETINGS_DRIVE_FOLDER_ID)',
+      );
+    }
+    const files = await this.drive.listFolder(fid);
+    const videos = files.filter((f) => f.mimeType?.startsWith('video/'));
+    const docs = files.filter(
+      (f) =>
+        f.mimeType === 'application/vnd.google-apps.document' ||
+        f.mimeType?.startsWith('text/'),
+    );
+
+    let imported = 0;
+    let skipped = 0;
+    for (const tr of docs) {
+      const exists = await this.prisma.meeting.findFirst({
+        where: { driveFileId: tr.id! },
+      });
+      if (exists) {
+        skipped++;
+        continue;
+      }
+      const text = await this.drive.readText(tr);
+      const base = (tr.name ?? '')
+        .replace(/\s*[-–]\s*(transcript|gemini|기록|메모|스크립트|노트).*$/i, '')
+        .trim();
+      const video =
+        videos.find((v) => base && (v.name ?? '').includes(base.slice(0, 12))) ??
+        undefined;
+      await this.create({
+        date: tr.createdTime ?? new Date().toISOString(),
+        driveFileId: tr.id!,
+        videoUrl: video?.webViewLink ?? undefined,
+        transcriptUrl: tr.webViewLink ?? undefined,
+        transcriptText: text || undefined,
+        announce: false,
+        authorId,
+      });
+      imported++;
+    }
+    return { imported, skipped, total: docs.length, videos: videos.length };
+  }
 
   findAll() {
     return this.prisma.meeting.findMany({ orderBy: { date: 'desc' } });
