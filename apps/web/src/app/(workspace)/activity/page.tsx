@@ -39,6 +39,7 @@ type Notif = {
 const FEED_IC: Record<string, { cls: string; ic: string }> = {
   mention: { cls: "mention", ic: "@" },
   task: { cls: "task", ic: "📋" },
+  dm: { cls: "task", ic: "💬" },
   system: { cls: "sys", ic: "⚠️" },
 };
 

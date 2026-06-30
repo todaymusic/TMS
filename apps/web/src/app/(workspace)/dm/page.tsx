@@ -32,6 +32,9 @@ export default function DmPage() {
   const [msgs, setMsgs] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [reply, setReply] = useState<ChatMessage | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [mentionQ, setMentionQ] = useState<string | null>(null);
 
   // 그룹 만들기 모달
   const [groupOpen, setGroupOpen] = useState(false);
@@ -82,16 +85,27 @@ export default function DmPage() {
     await openChannel(ch.id);
   }
 
+  const selChannel = channels.find((c) => c.id === selId);
+  const memberPool = selChannel?.members.filter((m) => m.id !== me?.id) ?? [];
+
   async function send() {
     if (!me || !selId || !text.trim()) return;
     setBusy(true);
     try {
+      // @멘션 해석 (채널 멤버 이름 매칭)
+      const mentions = memberPool
+        .filter((u) => text.includes(`@${u.name}`))
+        .map((u) => u.id);
       const created = await api.post<ChatMessage>(`/chat/channels/${selId}/messages`, {
         userId: me.id,
         content: text.trim(),
+        mentions,
+        replyToId: reply?.id,
       });
       setMsgs((cur) => [...cur, created]);
       setText("");
+      setReply(null);
+      setMentionQ(null);
       await loadChannels();
     } finally {
       setBusy(false);
@@ -102,9 +116,44 @@ export default function DmPage() {
       pinned: !m.pinned,
     });
     setMsgs((cur) => cur.map((x) => (x.id === m.id ? { ...x, pinned: updated.pinned } : x)));
+    setMenuFor(null);
+  }
+  async function copyMsg(m: ChatMessage) {
+    try {
+      await navigator.clipboard.writeText(m.content);
+    } catch {
+      /* noop */
+    }
+    setMenuFor(null);
+  }
+  async function pinChannelToggle(ch: ChatChannel) {
+    if (!me) return;
+    await api.patch(`/chat/channels/${ch.id}/pin?userId=${me.id}`, { pinned: !ch.pinned });
+    await loadChannels();
+  }
+  async function leaveChannel(ch: ChatChannel) {
+    if (!me) return;
+    const msg = ch.type === "dm" ? "이 대화를 삭제할까요?" : "이 그룹에서 나갈까요?";
+    if (!window.confirm(msg)) return;
+    await api.del(`/chat/channels/${ch.id}/members?userId=${me.id}`);
+    if (selId === ch.id) {
+      setSelId(null);
+      setMsgs([]);
+    }
+    await loadChannels();
   }
 
-  const selChannel = channels.find((c) => c.id === selId);
+  // 멘션 자동완성: 입력 끝의 @부분
+  function onText(v: string) {
+    setText(v);
+    const mtch = v.match(/@(\S*)$/);
+    setMentionQ(mtch ? mtch[1] : null);
+  }
+  function pickMention(name: string) {
+    setText((v) => v.replace(/@(\S*)$/, `@${name} `));
+    setMentionQ(null);
+  }
+
   const pinned = useMemo(() => msgs.filter((m) => m.pinned), [msgs]);
 
   return (
@@ -147,7 +196,10 @@ export default function DmPage() {
                   {ch.type === "broadcast" ? "📢" : ch.type === "group" ? "👥" : channelTitle(ch, me?.id).slice(0, 1)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13.5 }}>{channelTitle(ch, me?.id)}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13.5 }}>
+                    {ch.pinned && ch.type !== "broadcast" && "📌 "}
+                    {channelTitle(ch, me?.id)}
+                  </div>
                   <div style={{ fontSize: 12, color: "var(--text-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {ch.lastMessage ? ch.lastMessage.content : "메시지 없음"}
                   </div>
@@ -156,6 +208,16 @@ export default function DmPage() {
                   <span style={{ background: "#dc2626", color: "#fff", borderRadius: 10, fontSize: 11, padding: "1px 6px" }}>
                     {ch.unread}
                   </span>
+                )}
+                {ch.type !== "broadcast" && (
+                  <button
+                    className="btn sm"
+                    style={{ padding: "1px 5px", opacity: ch.pinned ? 1 : 0.4 }}
+                    title={ch.pinned ? "고정 해제" : "상단 고정"}
+                    onClick={(e) => { e.stopPropagation(); void pinChannelToggle(ch); }}
+                  >
+                    📌
+                  </button>
                 )}
               </div>
             ))}
@@ -188,8 +250,23 @@ export default function DmPage() {
               <>
                 <div className="panel-head" style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
                   <div className="sec-title">{channelTitle(selChannel, me?.id)}</div>
-                  <span className="count" style={{ marginLeft: "auto" }}>
-                    {selChannel.members.length}명
+                  <span style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+                    <span className="count">{selChannel.members.length}명</span>
+                    {selChannel.type !== "broadcast" && (
+                      <button className="btn sm" onClick={() => pinChannelToggle(selChannel)}>
+                        {selChannel.pinned ? "📌 고정해제" : "📌 고정"}
+                      </button>
+                    )}
+                    {selChannel.type === "dm" && (
+                      <button className="btn sm" style={{ color: "#dc2626" }} onClick={() => leaveChannel(selChannel)}>
+                        🗑 삭제
+                      </button>
+                    )}
+                    {selChannel.type === "group" && (
+                      <button className="btn sm" style={{ color: "#dc2626" }} onClick={() => leaveChannel(selChannel)}>
+                        🚪 나가기
+                      </button>
+                    )}
                   </span>
                 </div>
 
@@ -219,37 +296,83 @@ export default function DmPage() {
                         <div className="msg-top">
                           <span className="msg-name">{m.user.name}</span>
                           <span className="msg-time">{timeAgo(m.createdAt)}</span>
-                          <button
-                            className="btn sm"
-                            style={{ marginLeft: 8, padding: "1px 7px", opacity: 0.7 }}
-                            onClick={() => togglePin(m)}
-                            title={m.pinned ? "고정 해제" : "공지로 고정"}
-                          >
-                            {m.pinned ? "📌 해제" : "📌 고정"}
-                          </button>
+                          {m.pinned && <span style={{ marginLeft: 6, fontSize: 11 }}>📌</span>}
+                          <span style={{ position: "relative", marginLeft: "auto" }}>
+                            <button
+                              className="btn sm"
+                              style={{ padding: "1px 8px", opacity: 0.6 }}
+                              onClick={() => setMenuFor(menuFor === m.id ? null : m.id)}
+                              title="메뉴"
+                            >
+                              ⋯
+                            </button>
+                            {menuFor === m.id && (
+                              <div
+                                style={{ position: "absolute", right: 0, top: "100%", background: "var(--surface,#fff)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "0 6px 18px rgba(0,0,0,0.12)", zIndex: 30, minWidth: 110, padding: 4 }}
+                              >
+                                <div className="status-opt" style={{ padding: "7px 10px", cursor: "pointer", fontSize: 13 }} onClick={() => togglePin(m)}>
+                                  📌 {m.pinned ? "고정 해제" : "고정"}
+                                </div>
+                                <div className="status-opt" style={{ padding: "7px 10px", cursor: "pointer", fontSize: 13 }} onClick={() => copyMsg(m)}>
+                                  📋 복사
+                                </div>
+                                <div className="status-opt" style={{ padding: "7px 10px", cursor: "pointer", fontSize: 13 }} onClick={() => { setReply(m); setMenuFor(null); }}>
+                                  ↩ 답변
+                                </div>
+                              </div>
+                            )}
+                          </span>
                         </div>
+                        {m.replyTo && (
+                          <div style={{ borderLeft: "3px solid var(--border)", paddingLeft: 8, margin: "2px 0 4px", fontSize: 12, color: "var(--text-3)" }}>
+                            ↩ <b>{m.replyTo.user.name}</b> {m.replyTo.content.slice(0, 60)}
+                          </div>
+                        )}
                         <div className="msg-text">{m.content}</div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="composer" style={{ borderTop: "1px solid var(--border)" }}>
-                  <input
-                    className="inp"
-                    placeholder="메시지 입력…"
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        void send();
-                      }
-                    }}
-                  />
-                  <button className="btn primary sm" onClick={send} disabled={busy}>
-                    전송
-                  </button>
+                <div style={{ borderTop: "1px solid var(--border)", position: "relative" }}>
+                  {/* 답변 인용 */}
+                  {reply && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "var(--surface-2,#f6f6f6)", fontSize: 12 }}>
+                      ↩ <b>{reply.user.name}</b>
+                      <span style={{ color: "var(--text-3)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{reply.content}</span>
+                      <button className="btn sm" style={{ padding: "0 6px" }} onClick={() => setReply(null)}>✕</button>
+                    </div>
+                  )}
+                  {/* @멘션 자동완성 */}
+                  {mentionQ !== null && memberPool.length > 0 && (
+                    <div style={{ position: "absolute", bottom: "100%", left: 14, background: "var(--surface,#fff)", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "0 6px 18px rgba(0,0,0,0.12)", zIndex: 30, minWidth: 160, padding: 4 }}>
+                      {memberPool
+                        .filter((u) => u.name.includes(mentionQ))
+                        .map((u) => (
+                          <div key={u.id} className="status-opt" style={{ padding: "7px 10px", cursor: "pointer", fontSize: 13, display: "flex", gap: 6, alignItems: "center" }} onClick={() => pickMention(u.name)}>
+                            <span className="avatar" style={{ background: u.avatarColor, width: 20, height: 20, fontSize: 10 }}>{u.name.slice(0, 1)}</span>
+                            {u.name}
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                  <div className="composer">
+                    <input
+                      className="inp"
+                      placeholder="메시지 입력…  (@이름 으로 멘션)"
+                      value={text}
+                      onChange={(e) => onText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void send();
+                        }
+                      }}
+                    />
+                    <button className="btn primary sm" onClick={send} disabled={busy}>
+                      전송
+                    </button>
+                  </div>
                 </div>
               </>
             )}

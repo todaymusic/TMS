@@ -123,6 +123,7 @@ export type ChatChannel = {
   id: string;
   name: string | null;
   type: "dm" | "group" | "broadcast";
+  pinned?: boolean;
   members: ChatUser[];
   lastMessage: { content: string; createdAt: string; userName: string } | null;
   lastAt: string;
@@ -132,6 +133,8 @@ export type ChatMessage = {
   id: string;
   content: string;
   pinned: boolean;
+  mentions?: string[] | null;
+  replyTo?: { id: string; content: string; user: ChatUser } | null;
   createdAt: string;
   user: ChatUser;
 };
