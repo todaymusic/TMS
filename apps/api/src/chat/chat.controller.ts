@@ -14,6 +14,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
+import { Delete } from '@nestjs/common';
 import { ChatService } from './chat.service';
 
 class DmDto {
@@ -39,6 +40,15 @@ class SendDto {
 
   @IsString()
   content!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  mentions?: string[];
+
+  @IsOptional()
+  @IsString()
+  replyToId?: string;
 }
 class PinDto {
   @IsBoolean()
@@ -88,13 +98,29 @@ export class ChatController {
   // 메시지 전송
   @Post('channels/:id/messages')
   send(@Param('id') id: string, @Body() dto: SendDto) {
-    return this.chat.send(id, dto.userId, dto.content);
+    return this.chat.send(id, dto.userId, dto.content, dto.mentions, dto.replyToId);
   }
 
   // 읽음 처리
   @Patch('channels/:id/read')
   read(@Param('id') id: string, @Query('userId') userId: string) {
     return this.chat.markRead(id, userId);
+  }
+
+  // 채널 고정/해제(개인별)
+  @Patch('channels/:id/pin')
+  pinChannel(
+    @Param('id') id: string,
+    @Query('userId') userId: string,
+    @Body() dto: PinDto,
+  ) {
+    return this.chat.pinChannel(id, userId, dto.pinned);
+  }
+
+  // 채널 나가기/삭제
+  @Delete('channels/:id/members')
+  leave(@Param('id') id: string, @Query('userId') userId: string) {
+    return this.chat.leaveChannel(id, userId);
   }
 
   // 메시지 고정/해제

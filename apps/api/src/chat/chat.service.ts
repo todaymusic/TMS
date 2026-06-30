@@ -37,6 +37,7 @@ export class ChatService {
           id: ch.id,
           name: ch.name,
           type: ch.type,
+          pinned: mem.pinned,
           members: ch.members.map((m) => m.user),
           lastMessage: last
             ? { content: last.content, createdAt: last.createdAt, userName: last.user.name }
@@ -46,9 +47,33 @@ export class ChatService {
         };
       }),
     );
-    // 최근 메시지 순
-    rows.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());
+    // 전체공지 최상단 → 고정 → 최근 메시지 순
+    const rank = (r: (typeof rows)[number]) =>
+      r.type === 'broadcast' ? 0 : r.pinned ? 1 : 2;
+    rows.sort(
+      (a, b) =>
+        rank(a) - rank(b) ||
+        new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime(),
+    );
     return rows;
+  }
+
+  async pinChannel(channelId: string, userId: string, pinned: boolean) {
+    await this.prisma.channelMember.updateMany({
+      where: { channelId, userId },
+      data: { pinned },
+    });
+    return { ok: true };
+  }
+
+  /** 채널 나가기/삭제 — 멤버 제거, 아무도 없으면 채널 삭제 */
+  async leaveChannel(channelId: string, userId: string) {
+    await this.prisma.channelMember.deleteMany({ where: { channelId, userId } });
+    const remaining = await this.prisma.channelMember.count({ where: { channelId } });
+    if (remaining === 0) {
+      await this.prisma.channel.delete({ where: { id: channelId } });
+    }
+    return { ok: true };
   }
 
   /** 1:1 채널 찾기-또는-생성 */
@@ -112,16 +137,71 @@ export class ChatService {
   messages(channelId: string) {
     return this.prisma.channelMessage.findMany({
       where: { channelId },
-      include: { user: userSel },
+      include: {
+        user: userSel,
+        replyTo: { include: { user: userSel } },
+      },
       orderBy: { createdAt: 'asc' },
     });
   }
 
-  send(channelId: string, userId: string, content: string) {
-    return this.prisma.channelMessage.create({
-      data: { channelId, userId, content },
-      include: { user: userSel },
+  async send(
+    channelId: string,
+    userId: string,
+    content: string,
+    mentions?: string[],
+    replyToId?: string,
+  ) {
+    const msg = await this.prisma.channelMessage.create({
+      data: {
+        channelId,
+        userId,
+        content,
+        mentions: mentions ?? [],
+        replyToId: replyToId || null,
+      },
+      include: {
+        user: userSel,
+        replyTo: { include: { user: userSel } },
+      },
     });
+
+    // 알림 — 멘션받은 사람은 mention, 나머지 멤버는 dm
+    const [members, channel] = await Promise.all([
+      this.prisma.channelMember.findMany({
+        where: { channelId },
+        select: { userId: true },
+      }),
+      this.prisma.channel.findUnique({
+        where: { id: channelId },
+        select: { name: true, type: true },
+      }),
+    ]);
+    const where =
+      channel?.type === 'broadcast' ? '전체 공지' : channel?.name || 'DM';
+    const mentionSet = new Set((mentions ?? []).filter((u) => u !== userId));
+    const preview = content.length > 40 ? content.slice(0, 40) + '…' : content;
+    const notifs = members
+      .filter((m) => m.userId !== userId)
+      .map((m) =>
+        mentionSet.has(m.userId)
+          ? {
+              userId: m.userId,
+              type: 'mention',
+              content: `${msg.user.name}님이 «${where}»에서 회원님을 멘션했습니다`,
+              link: '/dm',
+            }
+          : {
+              userId: m.userId,
+              type: 'dm',
+              content: `${msg.user.name} (${where}): ${preview}`,
+              link: '/dm',
+            },
+      );
+    if (notifs.length) {
+      await this.prisma.notification.createMany({ data: notifs });
+    }
+    return msg;
   }
 
   async markRead(channelId: string, userId: string) {

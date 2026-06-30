@@ -119,19 +119,24 @@ model ChannelMember {
   user       User      @relation(fields: [userId], references: [id])
   userId     String
   lastReadAt DateTime? // 이 시점 이후 메시지 = 안읽음
+  pinned     Boolean   @default(false) // 채널 목록 상단 고정(개인별)
 
   @@unique([channelId, userId])
 }
 
 model ChannelMessage {
-  id        String   @id @default(cuid())
-  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  id        String          @id @default(cuid())
+  channel   Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
   channelId String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User            @relation(fields: [userId], references: [id])
   userId    String
   content   String
-  pinned    Boolean  @default(false) // 📌 공지 고정
-  createdAt DateTime @default(now())
+  pinned    Boolean         @default(false) // 📌 공지 고정
+  mentions  Json? // 멘션된 userId 배열
+  replyTo   ChannelMessage? @relation("reply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replyToId String?
+  replies   ChannelMessage[] @relation("reply")
+  createdAt DateTime        @default(now())
 
   @@index([channelId, createdAt])
 }
