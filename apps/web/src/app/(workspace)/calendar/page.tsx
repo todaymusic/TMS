@@ -56,11 +56,30 @@ export default function CalendarPage() {
   const [meetCreate, setMeetCreate] = useState(false);
   const [meetSel, setMeetSel] = useState<Meeting | null>(null);
 
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
   async function loadMeetings() {
     try {
       setMeetings(await api.get<Meeting[]>("/meetings"));
     } catch {
       /* noop */
+    }
+  }
+  async function syncDrive() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const r = await api.post<{ imported: number; skipped: number; total: number }>(
+        `/meetings/sync?authorId=${me?.id ?? ""}`,
+        {},
+      );
+      setSyncMsg(`✅ ${r.imported}건 가져옴 (중복 ${r.skipped}건 건너뜀)`);
+      await loadMeetings();
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message.replace(/^API.*?→\s*\d+\s*/, "") : "동기화 실패");
+    } finally {
+      setSyncing(false);
     }
   }
   // 표시 월 (기준: 2026-06)
@@ -235,9 +254,15 @@ export default function CalendarPage() {
               />
             </div>
           ) : tab === "meeting" ? (
-            <button className="btn primary sm" style={{ marginLeft: "auto" }} onClick={() => setMeetCreate(true)}>
-              ＋ 회의 만들기
-            </button>
+            <span style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+              {syncMsg && <span style={{ fontSize: 12, color: syncMsg.startsWith("✅") ? "#16a34a" : "#dc2626" }}>{syncMsg}</span>}
+              <button className="btn sm" onClick={syncDrive} disabled={syncing}>
+                {syncing ? "동기화 중…" : "🔄 드라이브 동기화"}
+              </button>
+              <button className="btn primary sm" onClick={() => setMeetCreate(true)}>
+                ＋ 회의 만들기
+              </button>
+            </span>
           ) : (
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>
               연차·휴가 기간 표시
