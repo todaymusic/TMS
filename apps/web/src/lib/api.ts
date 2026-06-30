@@ -79,6 +79,7 @@ export type ProjectListItem = {
   progress: number;
   startDate: string | null;
   endDate: string | null;
+  createdAt: string;
   owners: Member[];
   participants: Member[];
   _count: { tasks: number; messages: number };

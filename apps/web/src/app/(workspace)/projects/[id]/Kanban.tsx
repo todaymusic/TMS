@@ -160,7 +160,18 @@ export default function Kanban({
                 </option>
               ))}
             </select>
-            <input className="inp" type="date" value={due} onChange={(e) => setDue(e.target.value)} style={{ width: 150 }} />
+            <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 11, color: "var(--text-3)" }}>
+              종료일자
+              <input
+                className="inp"
+                type="date"
+                value={due}
+                onChange={(e) => setDue(e.target.value)}
+                style={{ width: 150 }}
+                aria-label="종료일자 선택"
+                title="종료일자 선택"
+              />
+            </label>
             <button className="btn primary sm" onClick={addTask} disabled={addBusy}>
               {addBusy ? "추가 중…" : "추가"}
             </button>

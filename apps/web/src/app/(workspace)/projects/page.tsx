@@ -52,8 +52,13 @@ export default async function ProjectsPage() {
     error = e instanceof Error ? e.message : "불러오기 실패";
   }
 
-  const active = projects.filter((p) => p.status === "active");
-  const archived = projects.filter((p) => p.status === "archived");
+  // 활성: 오래된 순(먼저 시작한 게 위) / 아카이브: 최근 순(최근 아카이브가 위)
+  const active = projects
+    .filter((p) => p.status === "active")
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const archived = projects
+    .filter((p) => p.status === "archived")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return (
     <>

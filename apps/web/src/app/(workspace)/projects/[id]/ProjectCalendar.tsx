@@ -17,10 +17,12 @@ export default function ProjectCalendar({
   tasks,
   startDate,
   endDate,
+  compact = false,
 }: {
   tasks: TaskInProject[];
   startDate: string | null;
   endDate: string | null;
+  compact?: boolean;
 }) {
   // 기본 월: 프로젝트 시작월 → 없으면 첫 업무 마감월 → 없으면 현재
   const base = useMemo(() => {
@@ -64,6 +66,69 @@ export default function ProjectCalendar({
 
   const fmt = (s: string | null) =>
     s ? `${new Date(s).getMonth() + 1}/${new Date(s).getDate()}` : "";
+
+  // ───── 소형(헤더용) ─────
+  if (compact) {
+    return (
+      <div
+        className="card"
+        style={{ padding: 12, width: 250, fontSize: 11, alignSelf: "flex-start" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+          <button className="btn sm" style={{ padding: "0 6px" }} onClick={() => move(-1)}>
+            ◀
+          </button>
+          <span style={{ fontWeight: 700, fontSize: 12 }}>{label}</span>
+          <button className="btn sm" style={{ padding: "0 6px" }} onClick={() => move(1)}>
+            ▶
+          </button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+          {DOWS.map((d) => (
+            <div key={d} style={{ textAlign: "center", color: "var(--text-3)", fontSize: 10 }}>
+              {d}
+            </div>
+          ))}
+          {cells.map((c, idx) =>
+            c.day === null ? (
+              <div key={`m${idx}`} />
+            ) : (
+              <div
+                key={c.day}
+                title={c.tasks.map((t) => t.title).join(", ")}
+                style={{
+                  textAlign: "center",
+                  padding: "3px 0",
+                  borderRadius: 5,
+                  position: "relative",
+                  fontWeight: c.tasks.length ? 700 : 400,
+                  background:
+                    isThisMonth && c.day === today.getDate() ? "#eef2ff" : undefined,
+                }}
+              >
+                {c.day}
+                {c.tasks.length > 0 && (
+                  <span
+                    style={{
+                      display: "block",
+                      width: 5,
+                      height: 5,
+                      borderRadius: "50%",
+                      margin: "1px auto 0",
+                      background: progressColor(c.tasks[0].progress),
+                    }}
+                  />
+                )}
+              </div>
+            ),
+          )}
+        </div>
+        <div style={{ marginTop: 8, fontSize: 10, color: "var(--text-3)" }}>
+          📅 {fmt(startDate)}–{fmt(endDate)}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card" style={{ padding: "16px 18px", marginTop: 18 }}>

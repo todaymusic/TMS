@@ -1,30 +1,9 @@
 import Link from "next/link";
 import AiSummaryCard from "./AiSummaryCard";
 import Kanban from "./Kanban";
-import ProjectCalendar from "./ProjectCalendar";
-import MembersEditor from "./MembersEditor";
+import ProjectHeader from "./ProjectHeader";
 import ProjectThread from "./ProjectThread";
-import {
-  api,
-  progressColor,
-  type Message,
-  type ProjectDetail,
-} from "@/lib/api";
-
-const ROLE_LABEL: Record<string, string> = {
-  lead: "리드",
-  design: "디자인",
-  dev: "개발",
-  etc: "기타",
-};
-
-function fmtRange(s: string | null, e: string | null): string {
-  const f = (d: string | null) =>
-    d
-      ? `${new Date(d).getFullYear()}.${String(new Date(d).getMonth() + 1).padStart(2, "0")}.${String(new Date(d).getDate()).padStart(2, "0")}`
-      : "";
-  return [f(s), f(e)].filter(Boolean).join(" – ");
-}
+import { api, type Message, type ProjectDetail } from "@/lib/api";
 
 export default async function ProjectDetail({
   params,
@@ -64,8 +43,6 @@ export default async function ProjectDetail({
     );
   }
 
-  const links = project.links ?? [];
-
   return (
     <>
       <div className="topbar">
@@ -80,112 +57,8 @@ export default async function ProjectDetail({
           ← 프로젝트 목록으로
         </Link>
 
-        {/* 고정 상단 */}
-        <div className="card pinned">
-          <div className="pinned-top">
-            <div>
-              <h2>{project.name}</h2>
-              {project.overview && (
-                <div className="overview">{project.overview}</div>
-              )}
-            </div>
-            <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-              <MembersEditor
-                projectId={project.id}
-                owners={project.owners}
-                participants={project.participants}
-              />
-              <span className="pill indigo">
-                {project.status === "active" ? "진행중" : "아카이브"}
-              </span>
-            </div>
-          </div>
-          <div className="pinned-grid">
-            <div>
-              <div className="field-lbl">기간</div>
-              <div className="field-val">
-                {fmtRange(project.startDate, project.endDate) || "—"}
-              </div>
-            </div>
-            <div>
-              <div className="field-lbl">진행률</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div className="prog" style={{ flex: 1 }}>
-                  <i
-                    style={{
-                      width: `${project.progress}%`,
-                      background: progressColor(project.progress),
-                    }}
-                  />
-                </div>
-                <b style={{ fontSize: 13 }}>{project.progress}%</b>
-              </div>
-            </div>
-            <div>
-              <div className="field-lbl">담당자 맵핑</div>
-              <div className="role-map">
-                {project.owners.length === 0 && (
-                  <span style={{ color: "var(--text-3)" }}>—</span>
-                )}
-                {project.owners.map((o) => (
-                  <span key={o.id}>
-                    {ROLE_LABEL[o.role ?? "etc"] ?? o.role} ·{" "}
-                    <b>{o.user.name}</b>
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <div className="field-lbl">참여자</div>
-              <div
-                className="field-val"
-                style={{
-                  fontWeight: 400,
-                  color: "var(--text-2)",
-                  fontSize: 13,
-                }}
-              >
-                {project.participants.length
-                  ? project.participants.map((p) => p.user.name).join(" · ")
-                  : "—"}
-              </div>
-            </div>
-            {project.description && (
-              <div style={{ gridColumn: "1 / -1" }}>
-                <div className="field-lbl">업무 설명</div>
-                <div
-                  className="field-val"
-                  style={{
-                    fontWeight: 400,
-                    color: "var(--text-2)",
-                    fontSize: 13,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {project.description}
-                </div>
-              </div>
-            )}
-            {links.length > 0 && (
-              <div style={{ gridColumn: "1 / -1" }}>
-                <div className="field-lbl">관련 데이터</div>
-                <div className="links">
-                  {links.map((l, i) => (
-                    <a
-                      key={i}
-                      href={l.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="link-chip"
-                    >
-                      🔗 {l.label}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* 간소화 헤더 + 작은 캘린더 */}
+        <ProjectHeader project={project} />
 
         {/* 상단 2단: AI 요약 + 커뮤니케이션 */}
         <div className="detail-cols">
@@ -218,13 +91,6 @@ export default async function ProjectDetail({
             }))}
           />
         </div>
-
-        {/* 프로젝트 캘린더 (기간) */}
-        <ProjectCalendar
-          tasks={project.tasks}
-          startDate={project.startDate}
-          endDate={project.endDate}
-        />
       </div>
     </>
   );
