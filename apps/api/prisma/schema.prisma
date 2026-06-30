@@ -36,6 +36,7 @@ enum Priority {
 enum TaskStatus {
   todo // 할일
   doing // 진행중
+  paused // 중단(잠시 멈춤)
   review // 검토중
   done // 완료
   completed_pending // 완료(검수 대기)

@@ -104,6 +104,44 @@ export class TasksService {
   }
 
   /**
+   * 업무 중단 — 잠시 멈춤. 열린 WorkLog 닫고 status=paused (시간 기록 남김).
+   */
+  async pause(id: string) {
+    await this.findOne(id);
+    const now = new Date();
+    await this.prisma.workLog.updateMany({
+      where: { taskId: id, endedAt: null },
+      data: { endedAt: now },
+    });
+    return this.prisma.task.update({
+      where: { id },
+      data: { status: TaskStatus.paused },
+      include: taskInclude,
+    });
+  }
+
+  /**
+   * 업무 재개 — 중단했던 업무 다시. 새 WorkLog 세션 시작, status=doing.
+   */
+  async resume(id: string) {
+    const task = await this.findOne(id);
+    if (!task.assigneeId)
+      throw new BadRequestException('수행자가 지정되지 않은 업무는 재개할 수 없습니다');
+    const now = new Date();
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.task.update({
+        where: { id },
+        data: { status: TaskStatus.doing },
+        include: taskInclude,
+      }),
+      this.prisma.workLog.create({
+        data: { userId: task.assigneeId, taskId: id, startedAt: now },
+      }),
+    ]);
+    return updated;
+  }
+
+  /**
    * 업무 종료 — 체크리스트 종료 시.
    * endedAt 기록, progress=100, status=done, 산출물 링크 저장, 열린 WorkLog 닫기.
    */

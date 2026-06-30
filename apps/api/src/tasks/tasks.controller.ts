@@ -44,6 +44,17 @@ export class TasksController {
     return this.tasks.start(id);
   }
 
+  // 잠시 중단 / 재개 (세션 시간 기록)
+  @Post(':id/pause')
+  pause(@Param('id') id: string) {
+    return this.tasks.pause(id);
+  }
+
+  @Post(':id/resume')
+  resume(@Param('id') id: string) {
+    return this.tasks.resume(id);
+  }
+
   // 내 활동 체크리스트: 종료(+산출물)
   @Post(':id/end')
   end(@Param('id') id: string, @Body() dto: EndTaskDto) {
