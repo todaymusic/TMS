@@ -8,7 +8,7 @@ import {
   type TaskInProject,
   type TaskStatus,
 } from "@/lib/api";
-import TaskDetailModal from "./TaskDetailModal";
+import TaskDetailModal from "@/components/TaskDetailModal";
 
 const PRI: Record<Priority, { label: string; cls: string }> = {
   urgent: { label: "긴급", cls: "u" },

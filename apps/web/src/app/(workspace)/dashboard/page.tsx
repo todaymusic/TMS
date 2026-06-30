@@ -330,6 +330,20 @@ export default function DashboardPage() {
                             : "대기 중"}
                         <b>{m.status === "off" ? "" : (task?.title ?? "")}</b>
                       </div>
+                      {task?.statusMemo && (
+                        <div
+                          style={{
+                            fontSize: 11.5,
+                            color: "var(--text-3)",
+                            marginTop: 2,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          📝 {task.statusMemo}
+                        </div>
+                      )}
                       <div className="member-foot">
                         <div className="prog" style={{ flex: 1 }}>
                           <i style={{ width: `${pct}%`, background: progressColor(pct) }} />

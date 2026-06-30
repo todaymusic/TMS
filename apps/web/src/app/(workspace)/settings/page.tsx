@@ -33,6 +33,33 @@ export default function SettingsPage() {
   const [pwMsg, setPwMsg] = useState<string | null>(null);
   const [pwBusy, setPwBusy] = useState(false);
 
+  // 근무 시간
+  const [wStart, setWStart] = useState("");
+  const [wEnd, setWEnd] = useState("");
+  const [wMsg, setWMsg] = useState<string | null>(null);
+  const [wBusy, setWBusy] = useState(false);
+  useEffect(() => {
+    setWStart(user?.workStart ?? "");
+    setWEnd(user?.workEnd ?? "");
+  }, [user?.workStart, user?.workEnd]);
+  async function saveWork() {
+    if (!user) return;
+    setWBusy(true);
+    setWMsg(null);
+    try {
+      await api.patch(`/users/${user.id}`, {
+        workStart: wStart || undefined,
+        workEnd: wEnd || undefined,
+      });
+      await refresh();
+      setWMsg("✅ 근무 시간 저장됨");
+    } catch (e) {
+      setWMsg(e instanceof Error ? e.message : "저장 실패");
+    } finally {
+      setWBusy(false);
+    }
+  }
+
   // 휴가
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [lvType, setLvType] = useState<LeaveType>("annual");
@@ -316,6 +343,34 @@ export default function SettingsPage() {
           <button className="btn primary" onClick={changePassword} disabled={pwBusy}>
             {pwBusy ? "변경 중…" : "비밀번호 변경"}
           </button>
+        </div>
+
+        {/* 근무 시간 (퇴근 알림) */}
+        <div className="card" style={{ padding: 22, maxWidth: 600 }}>
+          <div className="sec-title mb16">
+            <span className="em">🕘</span> 근무 시간
+          </div>
+          <div className="hint" style={{ marginBottom: 10 }}>
+            퇴근 시간 5분 전에 “진행률을 기입해주세요” 알림이 떠요.
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div className="assign-field" style={{ margin: 0 }}>
+              <label>출근</label>
+              <input className="inp" type="time" value={wStart} onChange={(e) => setWStart(e.target.value)} />
+            </div>
+            <div className="assign-field" style={{ margin: 0 }}>
+              <label>퇴근</label>
+              <input className="inp" type="time" value={wEnd} onChange={(e) => setWEnd(e.target.value)} />
+            </div>
+            <button className="btn primary" onClick={saveWork} disabled={wBusy}>
+              {wBusy ? "저장 중…" : "저장"}
+            </button>
+          </div>
+          {wMsg && (
+            <div className="field-hint" style={{ marginTop: 8, color: wMsg.startsWith("✅") ? "#16a34a" : "#dc2626" }}>
+              {wMsg}
+            </div>
+          )}
         </div>
       </div>
     </>

@@ -3,8 +3,20 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { api, type Task, type User } from "@/lib/api";
+import { api, type Priority, type Task, type User } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import TaskDetailModal from "@/components/TaskDetailModal";
+
+const PRI: Record<Priority, { label: string; bg: string; fg: string }> = {
+  urgent: { label: "긴급", bg: "#fee2e2", fg: "#b91c1c" },
+  high: { label: "높음", bg: "#ffedd5", fg: "#c2410c" },
+  medium: { label: "보통", bg: "#e0e7ff", fg: "#4338ca" },
+  low: { label: "낮음", bg: "#f1f5f9", fg: "#64748b" },
+};
+
+function ymd(d: Date) {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
 
 type Notif = {
   id: string;
@@ -58,6 +70,10 @@ function ActivityInner() {
   const [endVideo, setEndVideo] = useState("");
   const [endNote, setEndNote] = useState("");
   const [endBusy, setEndBusy] = useState(false);
+  // 날짜 이동(어제/오늘/내일) · 상세 모달 · 퇴근 알림
+  const [dayOffset, setDayOffset] = useState(0);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [endAlarm, setEndAlarm] = useState(false);
 
   async function load() {
     if (!me || !targetId) return;
@@ -147,6 +163,40 @@ function ActivityInner() {
     todo: tasks.filter((t) => stateOf(t) === "todo").length,
   };
 
+  // 선택 날짜(마감일 기준) 할일
+  const selDate = new Date();
+  selDate.setDate(selDate.getDate() + dayOffset);
+  const selKey = ymd(selDate);
+  const dayLabel = dayOffset === 0 ? "오늘" : dayOffset === -1 ? "어제" : dayOffset === 1 ? "내일" : `${selDate.getMonth() + 1}/${selDate.getDate()}`;
+  const dayTasks = tasks.filter((t) => {
+    if (t.dueDate) return ymd(new Date(t.dueDate)) === selKey;
+    return dayOffset === 0; // 마감일 없는 건 오늘에 표시
+  });
+  const doingCount = tasks.filter((t) => stateOf(t) === "doing").length;
+
+  // 마감 임박(2일 이내 미완료)
+  const now = new Date();
+  const soon = tasks
+    .filter((t) => t.dueDate && stateOf(t) !== "done")
+    .map((t) => ({ t, days: Math.ceil((new Date(t.dueDate!).getTime() - now.getTime()) / 86400000) }))
+    .filter((x) => x.days <= 2)
+    .sort((a, b) => a.days - b.days);
+
+  // 퇴근 5분 전 알림(본인, workEnd 설정 시, 앱 열려있을 때)
+  useEffect(() => {
+    if (!isSelf || !me?.workEnd) return;
+    const check = () => {
+      const [h, m] = (me.workEnd ?? "").split(":").map(Number);
+      if (Number.isNaN(h)) return;
+      const d = new Date();
+      const mins = (h * 60 + m) - (d.getHours() * 60 + d.getMinutes());
+      setEndAlarm(mins > 0 && mins <= 5);
+    };
+    check();
+    const id = setInterval(check, 30000);
+    return () => clearInterval(id);
+  }, [isSelf, me?.workEnd]);
+
   return (
     <>
       <div className="topbar">
@@ -171,14 +221,59 @@ function ActivityInner() {
             API 오류: {err}
           </div>
         )}
+
+        {/* 퇴근 5분 전 알림 */}
+        {isSelf && endAlarm && (
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 10, marginBottom: 14,
+              padding: "12px 16px", background: "#fef3c7", borderRadius: 10, fontSize: 14, fontWeight: 600,
+            }}
+          >
+            ⏰ 곧 퇴근이에요! 진행 중인 업무의 <b>진행률을 기입</b>해주세요~
+          </div>
+        )}
+
+        {/* 마감 임박 배너 */}
+        {soon.length > 0 && (
+          <div className="card" style={{ marginBottom: 14, padding: "12px 16px", borderLeft: "4px solid #f59e0b" }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 6 }}>⏳ 마감 임박</div>
+            <div style={{ display: "grid", gap: 4 }}>
+              {soon.map(({ t, days }) => (
+                <div
+                  key={t.id}
+                  onClick={() => setDetailId(t.id)}
+                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}
+                >
+                  <span className="pill" style={{ background: days <= 0 ? "#fee2e2" : "#fef3c7", color: days <= 0 ? "#b91c1c" : "#a16207" }}>
+                    {days < 0 ? `D+${-days}` : days === 0 ? "D-Day" : `D-${days}`}
+                  </span>
+                  <span style={{ flex: 1 }}>{t.title}</span>
+                  {t.project && <span style={{ fontSize: 11, color: "var(--text-3)" }}>{t.project.name}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="act-cols">
           {/* 좌: 체크리스트 + 멘션 피드 */}
           <div style={{ display: "grid", gap: 18 }}>
             <div className="card">
               <div className="panel-head">
                 <div className="sec-title">
-                  <span className="em">✅</span> 오늘 할일 체크리스트
+                  <span className="em">✅</span> 할일 체크리스트
                 </div>
+                <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+                  <button className="btn sm" onClick={() => setDayOffset((d) => d - 1)}>◀</button>
+                  <b style={{ fontSize: 13, minWidth: 64, textAlign: "center" }}>
+                    {dayLabel} ({selDate.getMonth() + 1}/{selDate.getDate()})
+                  </b>
+                  <button className="btn sm" onClick={() => setDayOffset((d) => d + 1)}>▶</button>
+                  {dayOffset !== 0 && (
+                    <button className="btn sm" onClick={() => setDayOffset(0)}>오늘</button>
+                  )}
+                </span>
               </div>
               <div className="chklist">
                 {loading && (
@@ -186,31 +281,43 @@ function ActivityInner() {
                     불러오는 중…
                   </div>
                 )}
-                {!loading && tasks.length === 0 && (
+                {!loading && dayTasks.length === 0 && (
                   <div style={{ padding: 18, color: "var(--text-3)", fontSize: 13 }}>
-                    부여된 업무가 없어요.
+                    {dayLabel} 마감 업무가 없어요.
                   </div>
                 )}
-                {tasks.map((it) => {
+                {dayTasks.map((it) => {
                   const st = stateOf(it);
                   const output =
                     [it.reportRequired ? "📊" : "", it.videoRequired ? "🎥" : ""]
                       .filter(Boolean)
                       .join("") || "—";
                   return (
-                    <div key={it.id} className={`chk-item ${st}`}>
+                    <div
+                      key={it.id}
+                      className={`chk-item ${st}`}
+                      onClick={() => setDetailId(it.id)}
+                      style={{ cursor: "pointer", flexWrap: "wrap" }}
+                      title="클릭하면 상세 보기"
+                    >
                       <input
                         type="checkbox"
                         checked={st !== "todo"}
                         readOnly
                         style={{ width: 16, height: 16, accentColor: "var(--primary)" }}
                       />
+                      <span
+                        className="pill"
+                        style={{ background: PRI[it.priority].bg, color: PRI[it.priority].fg, fontSize: 11 }}
+                      >
+                        {PRI[it.priority].label}
+                      </span>
                       <span className={`ct${st === "done" ? " s" : ""}`}>{it.title}</span>
                       <span className="meta">{output}</span>
                       {isSelf && st === "todo" && (
                         <button
                           className="btn sm"
-                          onClick={() => start(it.id)}
+                          onClick={(e) => { e.stopPropagation(); start(it.id); }}
                           disabled={busy === it.id}
                         >
                           시작
@@ -222,7 +329,7 @@ function ActivityInner() {
                           {isSelf && (
                           <button
                             className="btn sm"
-                            onClick={() => openEnd(it)}
+                            onClick={(e) => { e.stopPropagation(); openEnd(it); }}
                             disabled={busy === it.id}
                           >
                             종료
@@ -231,6 +338,11 @@ function ActivityInner() {
                         </>
                       )}
                       {st === "done" && <span className="meta">완료 ✓</span>}
+                      {it.statusMemo && (
+                        <div style={{ flexBasis: "100%", fontSize: 12, color: "var(--text-3)", paddingLeft: 24 }}>
+                          📝 {it.statusMemo}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -420,6 +532,18 @@ function ActivityInner() {
             </div>
           </div>
         </div>
+      )}
+
+      {detailId && (
+        <TaskDetailModal
+          taskId={detailId}
+          readOnly={!isSelf}
+          onClose={() => setDetailId(null)}
+          onSaved={() => {
+            setDetailId(null);
+            void load();
+          }}
+        />
       )}
     </>
   );

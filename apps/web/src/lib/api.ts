@@ -96,7 +96,10 @@ export type Task = {
   videoRequired: boolean;
   reportLink: string | null;
   videoLink: string | null;
+  statusMemo: string | null;
   dueDate: string | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
   progress: number;
   assigner: UserBrief | null;
   assignee: UserBrief | null;
@@ -195,6 +198,8 @@ export type User = {
   statusMessage: string | null;
   isAdmin?: boolean;
   leaveBalance?: number;
+  workStart?: string | null;
+  workEnd?: string | null;
 };
 
 // SPEC: 진행률 경과별 색상 코딩 (0⚪ / ~25🔴 / ~50🟠 / ~75🟡 / ~99🔵 / 100🟢)
