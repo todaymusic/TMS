@@ -89,6 +89,12 @@ export class MeetingsController {
     return this.meetings.recordAndCreate(file.buffer, ext, authorId);
   }
 
+  // 드라이브 회의 전체 리셋(재임포트용)
+  @Post('reset-drive')
+  resetDrive() {
+    return this.meetings.resetDrive();
+  }
+
   // 드라이브 폴더 동기화(기존/신규 회의 자동 가져오기)
   @Post('sync')
   sync(

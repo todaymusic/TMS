@@ -53,6 +53,12 @@ export class MeetingsService {
     });
   }
 
+  /** 드라이브에서 온 회의 전체 하드삭제(재임포트용) */
+  async resetDrive() {
+    const r = await this.prisma.meeting.deleteMany({ where: { driveFileId: { not: null } } });
+    return { deleted: r.count };
+  }
+
   /** 진단: 폴더 파일 목록(이름·형식·날짜) */
   async driveFiles(folderId?: string) {
     const fid = folderId || process.env.MEETINGS_DRIVE_FOLDER_ID;
@@ -75,14 +81,11 @@ export class MeetingsService {
     }
     const files = await this.drive.listFolder(fid);
     const videos = files.filter((f) => f.mimeType?.startsWith('video/'));
-    // 트랜스크립트 = 구글문서/텍스트 OR 이름에 트랜스크립트류 키워드 포함(형식 무관)
-    const TR_RE = /transcript|gemini|기록|메모|스크립트|노트|회의록|대화|받아쓰기/i;
+    // 트랜스크립트 = 구글문서/텍스트 (Gemini 회의록 등)
     const docs = files.filter(
       (f) =>
-        !f.mimeType?.startsWith('video/') &&
-        (f.mimeType === 'application/vnd.google-apps.document' ||
-          f.mimeType?.startsWith('text/') ||
-          TR_RE.test(f.name ?? '')),
+        f.mimeType === 'application/vnd.google-apps.document' ||
+        f.mimeType?.startsWith('text/'),
     );
 
     const usedVideos = new Set<string>();
