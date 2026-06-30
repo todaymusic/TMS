@@ -24,7 +24,7 @@ function fmt(d: string) {
 }
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, refresh } = useAuth();
 
   // 비밀번호 변경
   const [cur, setCur] = useState("");
@@ -82,6 +82,34 @@ export default function SettingsPage() {
       setPwBusy(false);
     }
   }
+
+  // 신청됨 휴가: 본인이 즉시 취소(삭제)
+  async function cancelLeave(id: string) {
+    setLvBusy(true);
+    try {
+      await api.del(`/leaves/${id}`);
+      await loadLeaves();
+      await refresh();
+    } finally {
+      setLvBusy(false);
+    }
+  }
+  // 승인됨 휴가: 취소 요청(관리자 확인 대기)
+  async function requestCancel(id: string) {
+    setLvBusy(true);
+    try {
+      await api.patch(`/leaves/${id}/request-cancel`, {});
+      await loadLeaves();
+    } finally {
+      setLvBusy(false);
+    }
+  }
+
+  // 최근 3개월(종료일 기준)만 표시
+  const cutoff = Date.now() - 1000 * 60 * 60 * 24 * 92;
+  const visibleLeaves = leaves.filter(
+    (lv) => new Date(lv.endDate).getTime() >= cutoff,
+  );
 
   async function requestLeave() {
     setLvMsg(null);
@@ -175,20 +203,21 @@ export default function SettingsPage() {
           </div>
 
           <div style={{ marginTop: 16, display: "grid", gap: 8 }}>
-            {leaves.length === 0 && (
-              <div style={{ color: "var(--text-3)", fontSize: 13 }}>신청한 휴가가 없습니다.</div>
+            {visibleLeaves.length === 0 && (
+              <div style={{ color: "var(--text-3)", fontSize: 13 }}>최근 3개월 내 휴가가 없습니다.</div>
             )}
-            {leaves.map((lv) => (
+            {visibleLeaves.map((lv) => (
               <div
                 key={lv.id}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 10,
+                  gap: 8,
                   padding: "10px 12px",
                   border: "1px solid var(--border)",
                   borderRadius: 8,
                   fontSize: 13,
+                  flexWrap: "wrap",
                 }}
               >
                 <span className="pill gray">{LEAVE_LABEL[lv.type]}</span>
@@ -196,17 +225,33 @@ export default function SettingsPage() {
                   {fmt(lv.startDate)} – {fmt(lv.endDate)}
                 </span>
                 {lv.reason && <span style={{ color: "var(--text-3)" }}>· {lv.reason}</span>}
-                <span
-                  className="pill"
-                  style={{
-                    marginLeft: "auto",
-                    background:
-                      lv.status === "approved" ? "#dcfce7" : lv.status === "rejected" ? "#fee2e2" : "#fef9c3",
-                    color:
-                      lv.status === "approved" ? "#15803d" : lv.status === "rejected" ? "#b91c1c" : "#a16207",
-                  }}
-                >
-                  {STATUS_KO[lv.status]}
+                <span style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+                  <span
+                    className="pill"
+                    style={{
+                      background:
+                        lv.status === "approved" ? "#dcfce7" : lv.status === "rejected" ? "#fee2e2" : "#fef9c3",
+                      color:
+                        lv.status === "approved" ? "#15803d" : lv.status === "rejected" ? "#b91c1c" : "#a16207",
+                    }}
+                  >
+                    {STATUS_KO[lv.status]}
+                  </span>
+                  {lv.status === "requested" && (
+                    <button className="btn sm" onClick={() => cancelLeave(lv.id)} disabled={lvBusy}>
+                      취소
+                    </button>
+                  )}
+                  {lv.status === "approved" &&
+                    (lv.cancelRequested ? (
+                      <span className="pill" style={{ background: "#fef9c3", color: "#a16207" }}>
+                        취소요청됨
+                      </span>
+                    ) : (
+                      <button className="btn sm" onClick={() => requestCancel(lv.id)} disabled={lvBusy}>
+                        취소 요청
+                      </button>
+                    ))}
                 </span>
               </div>
             ))}

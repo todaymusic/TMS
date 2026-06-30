@@ -68,6 +68,31 @@ export default function AdminPanel() {
       setBusy(null);
     }
   }
+  // 취소 요청 승인(삭제+연차 복구) / 거절
+  async function confirmCancel(id: string) {
+    setBusy(id);
+    try {
+      await api.del(`/leaves/${id}`);
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function denyCancel(id: string) {
+    setBusy(id);
+    try {
+      await api.patch(`/leaves/${id}/deny-cancel`, {});
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // 최근 3개월(종료일 기준) + 취소요청은 항상 표시
+  const cutoff = Date.now() - 1000 * 60 * 60 * 24 * 92;
+  const visibleLeaves = leaves.filter(
+    (lv) => lv.cancelRequested || new Date(lv.endDate).getTime() >= cutoff,
+  );
 
   const upd = (id: string, patch: Partial<Edit>) =>
     setEdits((c) => ({ ...c, [id]: { ...c[id], ...patch } }));
@@ -142,10 +167,10 @@ export default function AdminPanel() {
           <span className="em">🗂️</span> 전 멤버 휴가 (승인/반려)
         </div>
         <div style={{ display: "grid", gap: 8 }}>
-          {leaves.length === 0 && (
-            <div style={{ color: "var(--text-3)", fontSize: 13 }}>신청된 휴가가 없습니다.</div>
+          {visibleLeaves.length === 0 && (
+            <div style={{ color: "var(--text-3)", fontSize: 13 }}>최근 3개월 내 휴가가 없습니다.</div>
           )}
-          {leaves.map((lv) => (
+          {visibleLeaves.map((lv) => (
             <div
               key={lv.id}
               style={{
@@ -183,6 +208,19 @@ export default function AdminPanel() {
                     </button>
                     <button className="btn sm" onClick={() => setLeaveStatus(lv.id, "rejected")} disabled={busy === lv.id}>
                       반려
+                    </button>
+                  </>
+                )}
+                {lv.cancelRequested && (
+                  <>
+                    <span className="pill" style={{ background: "#fef9c3", color: "#a16207" }}>
+                      취소요청
+                    </span>
+                    <button className="btn sm" onClick={() => confirmCancel(lv.id)} disabled={busy === lv.id}>
+                      취소 승인
+                    </button>
+                    <button className="btn sm" onClick={() => denyCancel(lv.id)} disabled={busy === lv.id}>
+                      거절
                     </button>
                   </>
                 )}

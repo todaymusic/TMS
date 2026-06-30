@@ -151,6 +151,7 @@ export type Leave = {
   endDate: string;
   reason: string | null;
   status: LeaveStatus;
+  cancelRequested?: boolean;
   createdAt: string;
 };
 

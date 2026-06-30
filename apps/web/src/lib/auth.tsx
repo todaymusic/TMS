@@ -14,6 +14,7 @@ type AuthCtx = {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  refresh: () => Promise<void>;
 };
 
 const Ctx = createContext<AuthCtx>({
@@ -21,6 +22,7 @@ const Ctx = createContext<AuthCtx>({
   loading: true,
   login: async () => {},
   logout: () => {},
+  refresh: async () => {},
 });
 
 const COOKIE_MAXAGE = 60 * 60 * 24 * 30; // 30일
@@ -61,6 +63,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.user);
   }
 
+  async function refresh() {
+    try {
+      const fresh = await api.get<User>("/auth/me");
+      setUser(fresh);
+      localStorage.setItem("tms_user", JSON.stringify(fresh));
+    } catch {
+      /* noop */
+    }
+  }
+
   function logout() {
     localStorage.removeItem("tms_token");
     localStorage.removeItem("tms_user");
@@ -70,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <Ctx.Provider value={{ user, loading, login, logout }}>
+    <Ctx.Provider value={{ user, loading, login, logout, refresh }}>
       {children}
     </Ctx.Provider>
   );
