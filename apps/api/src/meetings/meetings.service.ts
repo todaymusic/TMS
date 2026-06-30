@@ -37,6 +37,10 @@ export class MeetingsService {
         f.mimeType?.startsWith('text/'),
     );
 
+    const usedVideos = new Set<string>();
+    const baseName = (n?: string | null) =>
+      (n ?? '').replace(/\s*[-–]\s*(transcript|gemini|기록|메모|스크립트|노트|recording|녹화).*$/i, '').trim();
+
     let imported = 0;
     let skipped = 0;
     for (const tr of docs) {
@@ -48,12 +52,32 @@ export class MeetingsService {
         continue;
       }
       const text = await this.drive.readText(tr);
-      const base = (tr.name ?? '')
-        .replace(/\s*[-–]\s*(transcript|gemini|기록|메모|스크립트|노트).*$/i, '')
-        .trim();
-      const video =
-        videos.find((v) => base && (v.name ?? '').includes(base.slice(0, 12))) ??
-        undefined;
+      const base = baseName(tr.name);
+      const trTime = tr.createdTime ? new Date(tr.createdTime).getTime() : 0;
+
+      // 영상 매칭: ①같은 이름(전체 prefix) 우선 → ②생성시각 가장 가까운 것. 한 번 쓴 영상은 재사용 안 함.
+      let video: (typeof videos)[number] | undefined;
+      const byName = videos.find(
+        (v) => !usedVideos.has(v.id!) && base.length > 4 && baseName(v.name) === base,
+      );
+      if (byName) {
+        video = byName;
+      } else {
+        let bestDiff = Infinity;
+        for (const v of videos) {
+          if (usedVideos.has(v.id!)) continue;
+          const vt = v.createdTime ? new Date(v.createdTime).getTime() : 0;
+          const diff = Math.abs(vt - trTime);
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            video = v;
+          }
+        }
+        // 6시간 이상 차이나면 매칭 안 함(다른 날 영상 오매칭 방지)
+        if (video && bestDiff > 6 * 3600 * 1000) video = undefined;
+      }
+      if (video?.id) usedVideos.add(video.id);
+
       await this.create({
         date: tr.createdTime ?? new Date().toISOString(),
         driveFileId: tr.id!,
