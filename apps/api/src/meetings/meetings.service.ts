@@ -109,7 +109,10 @@ export class MeetingsService {
   }
 
   findAll() {
-    return this.prisma.meeting.findMany({ orderBy: { date: 'desc' } });
+    return this.prisma.meeting.findMany({
+      where: { dismissed: false },
+      orderBy: { date: 'desc' },
+    });
   }
 
   async findOne(id: string) {
@@ -189,7 +192,14 @@ export class MeetingsService {
   }
 
   async remove(id: string) {
-    await this.findOne(id);
+    const m = await this.findOne(id);
+    // 드라이브에서 온 회의는 소프트삭제(dismissed)로 두어 재동기화 시 재등록 방지
+    if (m.driveFileId) {
+      return this.prisma.meeting.update({
+        where: { id },
+        data: { dismissed: true },
+      });
+    }
     return this.prisma.meeting.delete({ where: { id } });
   }
 }

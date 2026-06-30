@@ -298,6 +298,7 @@ model Meeting {
   transcriptUrl  String? // 트랜스크립트 링크
   transcriptText String? // 붙여넣은 트랜스크립트 원문(AI 요약 소스)
   summary        String? // AI 회의 개요(마크다운)
+  dismissed      Boolean  @default(false) // 삭제됨(목록 숨김+재동기화 시 재등록 방지)
   createdAt      DateTime @default(now())
 
   @@index([date])
