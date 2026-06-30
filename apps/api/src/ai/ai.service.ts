@@ -79,6 +79,61 @@ export class AiService {
     return { doc: this.textOf(msg) };
   }
 
+  /** 데일리 평가 — 업무설명 ↔ 노트/보고 ↔ 진행률% 일치도 한줄평 */
+  async dailyReview(userId: string, date: string) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const next = new Date(d);
+    next.setDate(next.getDate() + 1);
+
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        assigneeId: userId,
+        OR: [
+          { plannedDate: { gte: d, lt: next } },
+          { startedAt: { gte: d, lt: next } },
+          { dueDate: { gte: d, lt: next } },
+        ],
+      },
+      select: {
+        title: true,
+        description: true,
+        aiDescriptionDoc: true,
+        statusMemo: true,
+        reportLink: true,
+        videoLink: true,
+        progress: true,
+        status: true,
+      },
+    });
+    if (tasks.length === 0) {
+      throw new BadRequestException('오늘 평가할 업무가 없습니다');
+    }
+
+    const client = this.ensureClient();
+    const body = tasks
+      .map((t, i) =>
+        [
+          `[${i + 1}] ${t.title} (상태 ${t.status}, 진행률 ${t.progress}%)`,
+          `  업무설명: ${(t.aiDescriptionDoc || t.description || '없음').slice(0, 400)}`,
+          `  진행메모: ${t.statusMemo || '없음'}`,
+          `  보고/산출물: ${t.reportLink || t.videoLink || '없음'}`,
+        ].join('\n'),
+      )
+      .join('\n\n');
+
+    const msg = await client.messages.create({
+      model: MODEL,
+      max_tokens: 400,
+      system:
+        '당신은 팀 리더의 시각으로 하루 업무를 평가하는 어시스턴트입니다. 각 업무의 (1)업무설명 (2)진행메모/보고 내용 (3)본인이 설정한 진행률%이 서로 얼마나 일치·적절한지 보고, 과대평가/근거부족/잘 맞음 등을 짚어 한국어로 2~3문장의 데일리 한줄평을 작성하세요. 칭찬과 개선점을 균형있게, 구체적으로. 데이터에 없는 사실은 지어내지 마세요.',
+      messages: [
+        { role: 'user', content: `오늘 업무 내역입니다. 평가해 주세요.\n\n${body}` },
+      ],
+    });
+    return { review: this.textOf(msg) };
+  }
+
   /** 프로젝트 대화 → AI 소통 요약(핵심결정/진행/미결), Project.aiSummary 에 저장 */
   async summarizeProject(projectId: string) {
     const project = await this.prisma.project.findUnique({

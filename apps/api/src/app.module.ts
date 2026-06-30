@@ -11,6 +11,7 @@ import { MessagesModule } from './messages/messages.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
+import { ScheduleModule } from './schedule/schedule.module';
 import { TasksModule } from './tasks/tasks.module';
 import { UsersModule } from './users/users.module';
 import { WorkLogsModule } from './worklogs/worklogs.module';
@@ -30,6 +31,7 @@ import { WorkLogsModule } from './worklogs/worklogs.module';
     LeavesModule,
     NotificationsModule,
     ChatModule,
+    ScheduleModule,
   ],
   controllers: [AppController],
   providers: [AppService],

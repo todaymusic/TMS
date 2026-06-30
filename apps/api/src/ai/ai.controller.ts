@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Param, Post, Query } from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
 import { AiService } from './ai.service';
 
@@ -37,5 +37,11 @@ export class AiController {
   @Post('project-summary/:id')
   projectSummary(@Param('id') id: string) {
     return this.ai.summarizeProject(id);
+  }
+
+  // 데일리 평가: 업무설명↔노트/보고↔진행률 일치도 한줄평
+  @Post('daily-review')
+  dailyReview(@Query('userId') userId: string, @Query('date') date: string) {
+    return this.ai.dailyReview(userId, date);
   }
 }

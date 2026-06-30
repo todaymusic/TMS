@@ -97,6 +97,7 @@ model User {
   notifications     Notification[]
   channelMemberships ChannelMember[]
   channelMessages    ChannelMessage[]
+  scheduleBlocks    ScheduleBlock[]
 }
 
 // 채팅 채널(방): dm(1:1) / group(다수) / broadcast(전체 공지)
@@ -214,6 +215,23 @@ model Task {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   workLogs  WorkLog[]
+  scheduleBlocks ScheduleBlock[]
+}
+
+// 오늘 스케줄 계획 블록 (근무시간 타임라인에 업무/점심 배치)
+model ScheduleBlock {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  date      DateTime // 자정 기준 날짜
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId    String?
+  label     String? // taskId 없을 때(점심 등)
+  startMin  Int // 0~1439 (자정부터 분)
+  endMin    Int
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
 }
 
 model WorkLog {
