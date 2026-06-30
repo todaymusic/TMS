@@ -33,10 +33,54 @@ function colOf(status: TaskStatus): TaskStatus {
   return status === "completed_pending" ? "done" : status;
 }
 
-export default function Kanban({ initial }: { initial: TaskInProject[] }) {
+const PRIOS: Priority[] = ["urgent", "high", "medium", "low"];
+
+export default function Kanban({
+  projectId,
+  initial,
+  members,
+}: {
+  projectId: string;
+  initial: TaskInProject[];
+  members: { id: string; name: string }[];
+}) {
   const [tasks, setTasks] = useState<TaskInProject[]>(initial);
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
+
+  // 태스크 추가
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState("");
+  const [prio, setPrio] = useState<Priority>("medium");
+  const [assigneeId, setAssigneeId] = useState("");
+  const [due, setDue] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
+
+  async function addTask() {
+    if (!title.trim()) return;
+    setAddBusy(true);
+    try {
+      const created = await api.post<TaskInProject & { assignee: TaskInProject["assignee"] }>(
+        "/tasks",
+        {
+          title: title.trim(),
+          category: "project",
+          status: "todo",
+          priority: prio,
+          projectId,
+          assigneeId: assigneeId || undefined,
+          dueDate: due ? new Date(due).toISOString() : undefined,
+        },
+      );
+      setTasks((cur) => [...cur, created]);
+      setTitle("");
+      setDue("");
+      setAssigneeId("");
+      setAdding(false);
+    } finally {
+      setAddBusy(false);
+    }
+  }
 
   async function move(id: string, to: TaskStatus) {
     const t = tasks.find((x) => x.id === id);
@@ -53,6 +97,58 @@ export default function Kanban({ initial }: { initial: TaskInProject[] }) {
 
   return (
     <>
+      {/* 태스크 추가 */}
+      <div style={{ marginBottom: 12 }}>
+        {!adding ? (
+          <button className="btn sm" onClick={() => setAdding(true)}>
+            ＋ 태스크 추가
+          </button>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              alignItems: "center",
+              padding: 12,
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+            }}
+          >
+            <input
+              className="inp"
+              placeholder="태스크 제목"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              style={{ flex: 2, minWidth: 160 }}
+              autoFocus
+            />
+            <select className="inp" value={prio} onChange={(e) => setPrio(e.target.value as Priority)} style={{ width: 90 }}>
+              {PRIOS.map((p) => (
+                <option key={p} value={p}>
+                  {PRI[p].label}
+                </option>
+              ))}
+            </select>
+            <select className="inp" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} style={{ width: 110 }}>
+              <option value="">담당자</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <input className="inp" type="date" value={due} onChange={(e) => setDue(e.target.value)} style={{ width: 150 }} />
+            <button className="btn primary sm" onClick={addTask} disabled={addBusy}>
+              {addBusy ? "추가 중…" : "추가"}
+            </button>
+            <button className="btn sm" onClick={() => setAdding(false)}>
+              취소
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="kanban">
         {COLS.map((col) => {
           const items = tasks.filter((t) => colOf(t.status) === col.key);

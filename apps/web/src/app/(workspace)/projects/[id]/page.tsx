@@ -208,7 +208,14 @@ export default async function ProjectDetail({
           <div className="sec-title mb16">
             <span className="em">📋</span> 태스크 보드
           </div>
-          <Kanban initial={project.tasks} />
+          <Kanban
+            projectId={project.id}
+            initial={project.tasks}
+            members={[...project.owners, ...project.participants].map((m) => ({
+              id: m.user.id,
+              name: m.user.name,
+            }))}
+          />
         </div>
       </div>
     </>
