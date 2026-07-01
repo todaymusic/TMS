@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, progressColor, type ProjectDetail } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import MembersEditor from "./MembersEditor";
 import ProjectCalendar from "./ProjectCalendar";
 
@@ -16,11 +17,27 @@ function fmtRange(s: string | null, e: string | null): string {
 
 export default function ProjectHeader({ project }: { project: ProjectDetail }) {
   const router = useRouter();
+  const { user: me } = useAuth();
   const links = project.links ?? [];
   const done = project.progress >= 100;
   const [showDesc, setShowDesc] = useState(false);
   const [promptArchive, setPromptArchive] = useState(done && project.status === "active");
   const [busy, setBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  // 프로젝트 삭제는 담당자(owner) 또는 관리자만
+  const canDeleteProject =
+    !!me && (!!me.isAdmin || project.owners.some((o) => o.user.id === me.id));
+
+  async function removeProject() {
+    setBusy(true);
+    try {
+      await api.del(`/projects/${project.id}`);
+      router.push("/projects");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const statusLabel =
     project.status === "archived" ? "아카이브" : done ? "완료됨" : "진행중";
@@ -91,6 +108,30 @@ export default function ProjectHeader({ project }: { project: ProjectDetail }) {
                 <option value="active">활성</option>
                 <option value="archived">아카이브</option>
               </select>
+              {canDeleteProject &&
+                (confirmDel ? (
+                  <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <span style={{ fontSize: 11.5, color: "#dc2626", fontWeight: 700 }}>업무까지 전부 삭제?</span>
+                    <button
+                      className="btn sm"
+                      style={{ color: "#fff", background: "#dc2626", borderColor: "#dc2626" }}
+                      onClick={removeProject}
+                      disabled={busy}
+                    >
+                      {busy ? "삭제 중…" : "삭제"}
+                    </button>
+                    <button className="btn sm" onClick={() => setConfirmDel(false)} disabled={busy}>취소</button>
+                  </span>
+                ) : (
+                  <button
+                    className="btn sm"
+                    style={{ color: "#dc2626", borderColor: "#f0c9c9" }}
+                    onClick={() => setConfirmDel(true)}
+                    title="프로젝트 삭제 — 소속 업무·메시지까지 함께 삭제됩니다 (담당자/관리자)"
+                  >
+                    🗑 삭제
+                  </button>
+                ))}
             </span>
           </div>
 

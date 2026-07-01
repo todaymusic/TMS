@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api, type Priority, type TaskInProject } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 const SUBCATS = ["디자인", "개발", "마케팅", "기획", "지점업무", "교육", "운영", "인사·총무"];
 const PRIOS: { key: Priority; label: string }[] = [
@@ -26,6 +27,7 @@ export default function ProjectTaskCreateModal({
   onClose: () => void;
   onCreated: (t: TaskInProject) => void;
 }) {
+  const { user: me } = useAuth();
   const [subcat, setSubcat] = useState("디자인");
   const [prio, setPrio] = useState<Priority>("high");
   const [assigneeId, setAssigneeId] = useState(members[0]?.id ?? "");
@@ -79,6 +81,7 @@ export default function ProjectTaskCreateModal({
         status: "todo",
         priority: prio,
         projectId,
+        assignerId: me?.id || undefined,
         assigneeId: assigneeId || undefined,
         dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
         reportRequired: needReport,

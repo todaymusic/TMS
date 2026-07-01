@@ -158,6 +158,10 @@ export default function Kanban({
           taskId={selected}
           onClose={() => setSelected(null)}
           onSaved={applyUpdate}
+          onDeleted={(id) => {
+            setTasks((cur) => cur.filter((t) => t.id !== id));
+            setSelected(null);
+          }}
         />
       )}
 

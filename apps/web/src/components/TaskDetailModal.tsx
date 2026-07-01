@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type Priority, type TaskDetail, type TaskStatus } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 const PRI_LABEL: Record<Priority, string> = {
   urgent: "긴급",
@@ -19,23 +20,63 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
 };
 const CAT_LABEL: Record<string, string> = { long: "롱", shorts: "쇼츠", project: "프로젝트" };
 
+type WorkLog = { id: string; startedAt: string; endedAt: string | null };
+
+function fmtDur(ms: number): string {
+  const min = Math.round(ms / 60000);
+  if (min < 1) return "1분 미만";
+  if (min < 60) return `${min}분`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h}시간 ${m}분` : `${h}시간`;
+}
+function hm(s: string): string {
+  const d = new Date(s);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 export default function TaskDetailModal({
   taskId,
   onClose,
   onSaved,
+  onDeleted,
   readOnly = false,
 }: {
   taskId: string;
   onClose: () => void;
   onSaved?: (t: TaskDetail) => void;
+  onDeleted?: (id: string) => void;
   readOnly?: boolean;
 }) {
+  const { user: me } = useAuth();
   const [task, setTask] = useState<TaskDetail | null>(null);
+  const [logs, setLogs] = useState<WorkLog[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [bigEdit, setBigEdit] = useState(false);
   const [docSaved, setDocSaved] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  // 삭제는 업무를 요청/생성한 사람(부여자) 또는 관리자만 가능. 부모가 onDeleted를 넘긴 경우에만 노출.
+  const canDelete =
+    !readOnly &&
+    !!onDeleted &&
+    !!me &&
+    (!!me.isAdmin || (!!task?.assigner && me.id === task.assigner.id));
+
+  async function remove() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.del(`/tasks/${taskId}`);
+      onDeleted?.(taskId);
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "삭제 실패");
+      setBusy(false);
+    }
+  }
 
   async function saveDocOnly() {
     setBusy(true);
@@ -74,6 +115,11 @@ export default function TaskDetailModal({
         setDoc(t.aiDescriptionDoc ?? "");
         setReportLink(t.reportLink ?? "");
         setVideoLink(t.videoLink ?? "");
+        try {
+          setLogs(await api.get<WorkLog[]>(`/worklogs?taskId=${taskId}`));
+        } catch {
+          /* 타임라인 없음 */
+        }
       } catch (e) {
         setErr(e instanceof Error ? e.message : "불러오기 실패");
       }
@@ -128,6 +174,16 @@ export default function TaskDetailModal({
   }
 
   const ro = readOnly;
+
+  // 업무 타임라인(WorkLog 세션): 시작 → 중단/종료, 세션 사이 재개 간격, 총 실작업 시간
+  const sessions = [...logs].sort(
+    (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
+  );
+  const totalMs = sessions.reduce(
+    (s, l) => s + ((l.endedAt ? new Date(l.endedAt).getTime() : Date.now()) - new Date(l.startedAt).getTime()),
+    0,
+  );
+  const hasTimeline = sessions.length > 0 || !!task?.acceptedAt || !!task?.startedAt;
 
   return (
     <>
@@ -248,6 +304,60 @@ export default function TaskDetailModal({
               {task.assigner && <> · 부여: {task.assigner.name}</>}
             </div>
 
+            {hasTimeline && (
+              <div className="assign-field">
+                <label>🕒 업무 타임라인</label>
+                <div style={{ display: "grid", gap: 5, fontSize: 12.5, background: "var(--surface-2,#fafafa)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px" }}>
+                  {task.acceptedAt && (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <span>📥</span><span style={{ flex: 1 }}>수락</span>
+                      <span style={{ color: "var(--text-3)" }}>{hm(task.acceptedAt)}</span>
+                    </div>
+                  )}
+                  {sessions.length === 0 && !task.acceptedAt && (
+                    <div style={{ color: "var(--text-3)" }}>아직 시작 기록이 없어요.</div>
+                  )}
+                  {sessions.map((s, i) => {
+                    const next = sessions[i + 1];
+                    const dur = (s.endedAt ? new Date(s.endedAt).getTime() : Date.now()) - new Date(s.startedAt).getTime();
+                    const isLastDone = i === sessions.length - 1 && !!task.endedAt && !!s.endedAt;
+                    const endLabel = !s.endedAt ? "진행 중" : isLastDone ? "종료" : "중단";
+                    const gap = next && s.endedAt ? new Date(next.startedAt).getTime() - new Date(s.endedAt).getTime() : 0;
+                    return (
+                      <div key={s.id} style={{ display: "grid", gap: 3 }}>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <span>▶</span>
+                          <span style={{ flex: 1 }}>시작{sessions.length > 1 ? ` #${i + 1}` : ""}</span>
+                          <span style={{ color: "var(--text-3)" }}>{hm(s.startedAt)}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, color: s.endedAt ? undefined : "#2563eb" }}>
+                          <span>{s.endedAt ? "⏹" : "…"}</span>
+                          <span style={{ flex: 1 }}>
+                            {endLabel} <span style={{ color: "var(--text-3)" }}>· 소요 {fmtDur(dur)}</span>
+                          </span>
+                          <span style={{ color: "var(--text-3)" }}>{s.endedAt ? hm(s.endedAt) : ""}</span>
+                        </div>
+                        {next && gap > 0 && (
+                          <div style={{ display: "flex", gap: 8, color: "#a16207", paddingLeft: 4 }}>
+                            <span>⏳</span><span style={{ flex: 1 }}>{fmtDur(gap)} 만에 재개</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {task.endedAt && (
+                    <div style={{ display: "flex", gap: 8, fontWeight: 700, color: "#16a34a" }}>
+                      <span>✅</span><span style={{ flex: 1 }}>완료</span><span>{hm(task.endedAt)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 8, borderTop: "1px dashed var(--border)", paddingTop: 6, marginTop: 2, fontWeight: 700 }}>
+                    <span>Σ</span><span style={{ flex: 1 }}>총 실작업 시간</span>
+                    <span>{fmtDur(totalMs)} · {sessions.length}회</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {(task.reportRequired || reportLink) && (
               <div className="assign-field">
                 <label>📊 보고링크</label>
@@ -290,12 +400,42 @@ export default function TaskDetailModal({
 
             {err && <div style={{ color: "#dc2626", fontSize: 13, marginBottom: 8 }}>{err}</div>}
 
-            <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn" style={{ flex: 1 }} onClick={() => !busy && onClose()}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {canDelete &&
+                (confirmDel ? (
+                  <>
+                    <span style={{ fontSize: 13, color: "#dc2626", fontWeight: 600 }}>
+                      삭제할까요?
+                    </span>
+                    <button
+                      className="btn"
+                      onClick={remove}
+                      disabled={busy}
+                      style={{ color: "#fff", background: "#dc2626", borderColor: "#dc2626" }}
+                    >
+                      {busy ? "삭제 중…" : "삭제"}
+                    </button>
+                    <button className="btn" onClick={() => setConfirmDel(false)} disabled={busy}>
+                      취소
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="btn"
+                    onClick={() => setConfirmDel(true)}
+                    disabled={busy}
+                    title="이 업무를 삭제합니다 (요청한 사람만 가능)"
+                    style={{ color: "#dc2626", borderColor: "#f0c9c9" }}
+                  >
+                    🗑 삭제
+                  </button>
+                ))}
+              <span style={{ flex: 1 }} />
+              <button className="btn" onClick={() => !busy && onClose()}>
                 닫기
               </button>
               {!ro && (
-                <button className="btn primary" style={{ flex: 2 }} onClick={save} disabled={busy}>
+                <button className="btn primary" onClick={save} disabled={busy}>
                   {busy ? "저장 중…" : "저장"}
                 </button>
               )}
