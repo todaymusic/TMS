@@ -12,6 +12,8 @@ const SHARED_LINKS: { label: string; url: string; emoji?: string; desc?: string 
   { label: "솔루션", url: "https://todaymusic.up.railway.app/", emoji: "🎵", desc: "todaymusic 솔루션" },
   { label: "질문박스", url: "https://unique-stardust-fab6e4.netlify.app/", emoji: "📮", desc: "질문박스" },
   { label: "HTML 페이지화 사이트", url: "https://www.netlify.com/", emoji: "🌐", desc: "Netlify" },
+  { label: "TMS 사이트", url: "https://tms-production-b2a4.up.railway.app/login", emoji: "🖥️", desc: "업무 관리 플랫폼" },
+  { label: "오늘은헬로 프로그램", url: "https://ohhello-booking-production.up.railway.app/login", emoji: "☎️", desc: "전화영어 예약" },
 ];
 
 export default function LinksPage() {

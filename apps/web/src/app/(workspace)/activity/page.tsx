@@ -103,6 +103,7 @@ function ActivityInner() {
   const [myTitle, setMyTitle] = useState("");
   const [myPrio, setMyPrio] = useState<Priority>("medium");
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
   // 업무 리스트 → 오늘의 업무로 끌어오는 드래그
   const [listDragId, setListDragId] = useState<string | null>(null);
   // 업무설명 doc 새 창
@@ -223,7 +224,7 @@ function ActivityInner() {
         status: "todo",
         assignerId: me.id,
         assigneeId: me.id,
-        plannedDate: new Date().toISOString(), // 오늘의 업무에 바로
+        // plannedDate 미설정 — '나의 업무' 리스트에 담기고, 오늘의 업무로는 직접 드래그해 옮긴다
       });
       setMyTitle("");
       setMyAddOpen(false);
@@ -307,14 +308,11 @@ function ActivityInner() {
       // 남이 요청한 업무는 수락 전엔 오늘의 업무에서 제외
       if (t.assigner && t.assigner.id !== targetId && !t.acceptedAt) return false;
       if (dayOffset === 0) {
-        // 오늘 이하로 '오늘 하기' 한 미완료 업무는 완료할 때까지 계속 이월
+        // 오늘의 업무 = 내가 직접 담은 것(plannedDate, 미완료는 이월) + 진행중.
+        // 마감 임박 자동 편입은 하지 않음 — 새 업무는 '업무 리스트'에 남고 직접 드래그해 담는다.
         const plannedCarry =
           !!t.plannedDate && dateOnly(t.plannedDate) <= todayStart0.getTime() && stateOf(t) !== "done";
-        return (
-          plannedCarry ||
-          stateOf(t) === "doing" ||
-          (stateOf(t) !== "done" && ddays(t) <= 3)
-        );
+        return plannedCarry || stateOf(t) === "doing";
       }
       // 어제/내일 보기: 그 날짜에 계획됐거나 마감인 것
       const planned = t.plannedDate && ymd(new Date(t.plannedDate)) === selKey;
@@ -545,7 +543,7 @@ function ActivityInner() {
                       className={`chk-item ${stateOf(it)}`}
                       draggable={isSelf && dayOffset === 0}
                       onDragStart={(e) => { if (isSelf && dayOffset === 0) { setDragIdx(idx); e.dataTransfer.effectAllowed = "move"; } }}
-                      onDragEnd={() => setDragIdx(null)}
+                      onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
                       onClick={() => setDetailId(it.id)}
                       style={{
                         cursor: isSelf && dayOffset === 0 ? "grab" : "pointer",
@@ -553,10 +551,25 @@ function ActivityInner() {
                         opacity: dragIdx === idx ? 0.4 : 1,
                         background: progressBg(it.progress),
                         borderLeft: `4px solid ${progressColor(it.progress)}`,
+                        borderTop:
+                          dragIdx !== null && dragIdx !== idx && overIdx === idx
+                            ? "3px solid var(--primary)"
+                            : undefined,
                       }}
                       title="드래그하면 순서 변경 · 클릭하면 상세"
-                      onDragOver={(e) => isSelf && dragIdx !== null && e.preventDefault()}
-                      onDrop={(e) => { if (isSelf && dragIdx !== null) { e.stopPropagation(); void reorderToday(idx); } }}
+                      onDragOver={(e) => {
+                        if (isSelf && dragIdx !== null) {
+                          e.preventDefault();
+                          if (overIdx !== idx) setOverIdx(idx);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        if (isSelf && dragIdx !== null) {
+                          e.stopPropagation();
+                          void reorderToday(idx);
+                          setOverIdx(null);
+                        }
+                      }}
                     >
                       {isSelf && dayOffset === 0 && (
                         <span
@@ -588,6 +601,16 @@ function ActivityInner() {
                       >
                         {PRI[it.priority].label}
                       </span>
+                      {it.aiDescriptionDoc && (
+                        <button
+                          className="btn sm"
+                          onClick={(e) => { e.stopPropagation(); setDocTask({ id: it.id, title: it.title }); }}
+                          title="업무설명 doc 보기/편집"
+                          style={{ padding: "1px 6px", fontSize: 11, lineHeight: 1.2 }}
+                        >
+                          ⛶
+                        </button>
+                      )}
                       <span className="ct">
                         {it.project && (
                           <span style={{ color: "var(--text-3)", fontSize: 11.5 }}>({it.project.name}) </span>
@@ -609,13 +632,6 @@ function ActivityInner() {
                           📅 {mdd(it.dueDate)} ({ddays(it) < 0 ? `D+${-ddays(it)}` : ddays(it) === 0 ? "D-Day" : `D-${ddays(it)}`})
                         </span>
                       )}
-                      <button
-                        className="btn sm"
-                        onClick={(e) => { e.stopPropagation(); setDocTask({ id: it.id, title: it.title }); }}
-                        title="업무설명 doc 새 창에서 보기/편집"
-                      >
-                        ⛶ 업무설명
-                      </button>
                       {it.status === "paused" && (
                         <>
                           <span className="pill" style={{ background: "#fef3c7", color: "#a16207", fontSize: 10 }}>중단됨</span>

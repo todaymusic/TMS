@@ -112,6 +112,7 @@ export type Task = {
   endedAt?: string | null;
   createdAt?: string;
   progress: number;
+  aiDescriptionDoc?: string | null;
   assigner: UserBrief | null;
   assignee: UserBrief | null;
   project: { id: string; name: string } | null;
