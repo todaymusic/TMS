@@ -392,8 +392,9 @@ function ActivityInner() {
   const currentTasks = tasks.filter((t) => t.status === "doing");
   const mainTask = currentTasks.find((t) => t.id === mainTaskId) ?? currentTasks[0] ?? null;
   const subTasks = currentTasks.filter((t) => t.id !== mainTask?.id);
-  // 오늘의 업무 = 오늘 계획됐지만 아직 진행중이 아닌 것(대기·중단)
-  const todayList = dayTasks.filter((t) => t.status !== "doing");
+  // 오늘: 진행중은 '현재 업무중'으로 분리 표시(목록 제외).
+  // 과거/미래 뷰: 그날의 기록이므로 상태(진행중·완료 포함) 무관하게 그날 계획/마감 업무를 전부 표시.
+  const todayList = dayOffset === 0 ? dayTasks.filter((t) => t.status !== "doing") : dayTasks;
   const todayIds = new Set(dayTasks.map((t) => t.id));
 
   // 드래그로 오늘의 업무 순서 변경
@@ -588,7 +589,8 @@ function ActivityInner() {
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(320px, 380px)", gap: 18, alignItems: "start" }}>
           {/* ───────── 좌: 메인 ───────── */}
           <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
-            {/* ▶ 현재 업무중 + ⏳ 마감 임박 (하나의 카드) */}
+            {/* ▶ 현재 업무중 + ⏳ 마감 임박 — 오늘 뷰에서만 (과거/미래 뷰는 그날 기록만 표시) */}
+            {dayOffset === 0 && (
             <div className="card" style={{ borderLeft: "4px solid var(--primary)" }}>
               <div style={{ display: "flex", padding: "12px 14px 0" }}>
                 <span className="count" style={{ marginLeft: "auto" }}>{currentTasks.length}</span>
@@ -656,6 +658,7 @@ function ActivityInner() {
                 </div>
               )}
             </div>
+            )}
 
             {/* ✅ 오늘의 업무 — 체크=시작, 리스트에서 드래그 담기, 순서 변경 */}
             <div
