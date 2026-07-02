@@ -156,7 +156,6 @@ function DashboardInner() {
     (t) => t.assigner?.id === me?.id && !!t.assignee && t.assignee.id !== me?.id,
   );
   const assignees = Array.from(new Map(assigned.map((t) => [t.assignee!.id, t.assignee!])).values());
-  const months = Array.from(new Set(assigned.map((t) => ymKey(t.endedAt || t.createdAt)).filter(Boolean))).sort().reverse();
   const assignedRows = assigned
     .filter((t) => (who === "all" ? true : t.assignee?.id === who))
     .filter((t) => (month === "all" ? true : ymKey(t.endedAt || t.createdAt) === month))
@@ -305,6 +304,15 @@ function DashboardInner() {
     }
   }
   const canDelete = (t: Task) => !!me && (!!me.isAdmin || t.assigner?.id === me.id);
+  // 배정 탭 월 이동(◀ 이전달 / 다음달 ▶). "전체"에서 시작하면 현재 달 기준.
+  function shiftMonth(delta: number) {
+    const base =
+      month === "all"
+        ? { y: new Date().getFullYear(), m: new Date().getMonth() }
+        : { y: Number(month.slice(0, 4)), m: Number(month.slice(5)) - 1 };
+    const d = new Date(base.y, base.m + delta, 1);
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
 
   return (
     <>
@@ -406,13 +414,13 @@ function DashboardInner() {
                     {assignees.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                   <span style={{ fontSize: 12, color: "var(--text-3)" }}>월(완료 기준)</span>
-                  <div className="chips" style={{ gap: 4 }}>
-                    <span className={`chip${month === "all" ? " on" : ""}`} onClick={() => setMonth("all")}>전체</span>
-                    {months.map((m) => (
-                      <span key={m} className={`chip${month === m ? " on" : ""}`} onClick={() => setMonth(m)} title={m}>
-                        {`${Number(m.slice(5))}월`}
-                      </span>
-                    ))}
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <button className="btn sm" onClick={() => shiftMonth(-1)} title="이전 달">◀</button>
+                    <b style={{ minWidth: 62, textAlign: "center", fontSize: 12.5 }}>
+                      {month === "all" ? "전체" : `${month.slice(0, 4)}.${Number(month.slice(5))}`}
+                    </b>
+                    <button className="btn sm" onClick={() => shiftMonth(1)} title="다음 달">▶</button>
+                    <button className={`btn sm${month === "all" ? " primary" : ""}`} style={{ marginLeft: 2 }} onClick={() => setMonth("all")}>전체</button>
                   </div>
                   <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-2)" }}>총 {assignedRows.length}건</span>
                 </div>
