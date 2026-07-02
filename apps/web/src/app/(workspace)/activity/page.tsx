@@ -106,9 +106,11 @@ function ActivityInner() {
   const [overIdx, setOverIdx] = useState<number | null>(null);
   // 업무 통계: 월 이동 + 완료/진행중/대기 선택
   const [statMonth, setStatMonth] = useState(() => new Date());
-  const [statSel, setStatSel] = useState<"done" | "doing" | "todo">("done");
+  const [statSel, setStatSel] = useState<"done" | "doing" | "todo" | "overdue" | "rework">("done");
   // 업무 리스트 → 오늘의 업무로 끌어오는 드래그
   const [listDragId, setListDragId] = useState<string | null>(null);
+  // 오늘의 업무 → 업무 리스트로 되돌리는 드래그(plannedDate 해제)
+  const [todayDragId, setTodayDragId] = useState<string | null>(null);
   // 현재 업무중: 메인 업무 지정(개인) + 메인/서브 드래그
   const [mainTaskId, setMainTaskId] = useState<string | null>(null);
   const [curDragId, setCurDragId] = useState<string | null>(null);
@@ -313,7 +315,15 @@ function ActivityInner() {
   const doneInMonth = tasks.filter((t) => stateOf(t) === "done" && endMonthKey(t) === statMonthKey);
   const doingNow = tasks.filter((t) => t.status === "doing");
   const todoNow = tasks.filter((t) => t.status === "todo");
-  const statList = statSel === "done" ? doneInMonth : statSel === "doing" ? doingNow : todoNow;
+  const nowMs = Date.now();
+  const overdueNow = tasks.filter((t) => stateOf(t) !== "done" && t.dueDate && new Date(t.dueDate).getTime() < nowMs);
+  const reworkTasks = tasks.filter((t) => (t.reworkCount ?? 0) > 0);
+  const statList =
+    statSel === "done" ? doneInMonth
+    : statSel === "doing" ? doingNow
+    : statSel === "todo" ? todoNow
+    : statSel === "overdue" ? overdueNow
+    : reworkTasks;
 
   // 선택 날짜
   const selDate = new Date();
@@ -410,6 +420,13 @@ function ActivityInner() {
     setListDragId(null);
     if (!id) return;
     await planForDay(id, selDate.toISOString());
+  }
+  // 오늘의 업무 카드를 업무 리스트로 드롭 → plannedDate 해제(리스트로 복귀)
+  async function dropToBacklog() {
+    const id = todayDragId;
+    setTodayDragId(null);
+    if (!id) return;
+    await planForDay(id, null);
   }
   // 현재 업무중: 메인/서브 존으로 드롭
   function dropCur(zone: "main" | "sub") {
@@ -635,8 +652,8 @@ function ActivityInner() {
                       key={it.id}
                       className={`chk-item ${stateOf(it)}`}
                       draggable={isSelf && dayOffset === 0}
-                      onDragStart={(e) => { if (isSelf && dayOffset === 0) { setDragIdx(idx); e.dataTransfer.effectAllowed = "move"; } }}
-                      onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+                      onDragStart={(e) => { if (isSelf && dayOffset === 0) { setDragIdx(idx); setTodayDragId(it.id); e.dataTransfer.effectAllowed = "move"; } }}
+                      onDragEnd={() => { setDragIdx(null); setOverIdx(null); setTodayDragId(null); }}
                       onClick={() => setDetailId(it.id)}
                       style={{
                         cursor: isSelf && dayOffset === 0 ? "grab" : "pointer",
@@ -750,8 +767,13 @@ function ActivityInner() {
               </div>
             </div>
 
-            {/* 나의 업무 + 요청받은 업무 (드래그해서 오늘의 업무로) */}
-            <div className="card">
+            {/* 나의 업무 + 요청받은 업무 (드래그해서 오늘의 업무로 ↔ 되돌리기) */}
+            <div
+              className="card"
+              onDragOver={(e) => { if (isSelf && todayDragId) e.preventDefault(); }}
+              onDrop={() => { if (isSelf) void dropToBacklog(); }}
+              style={{ outline: todayDragId ? "2px dashed var(--primary)" : undefined, outlineOffset: -2 }}
+            >
               <div
                 style={{
                   display: "grid",
@@ -906,6 +928,24 @@ function ActivityInner() {
                     </button>
                   ))}
                 </div>
+                <div style={{ display: "flex", gap: 8, padding: "0 14px 10px", flexWrap: "wrap" }}>
+                  {([
+                    ["overdue", `⚠️ 마감초과 ${overdueNow.length}`, "#dc2626"],
+                    ["rework", `🔁 재요청 ${reworkTasks.length}`, "#c2410c"],
+                  ] as const).map(([k, label, color]) => (
+                    <button
+                      key={k}
+                      onClick={() => setStatSel(k)}
+                      style={{
+                        border: `1px solid ${statSel === k ? color : "var(--border)"}`,
+                        background: statSel === k ? `${color}14` : "transparent",
+                        borderRadius: 999, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, color,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <div style={{ padding: "0 14px 14px", display: "grid", gap: 6 }}>
                   {statList.length === 0 && (
                     <div style={{ color: "var(--text-3)", fontSize: 13 }}>해당 업무가 없어요.</div>
@@ -923,6 +963,12 @@ function ActivityInner() {
                       </span>
                       {statSel === "done" && t.endedAt && (
                         <span style={{ fontSize: 11, color: "var(--text-3)" }}>{mdd(t.endedAt)}</span>
+                      )}
+                      {statSel === "overdue" && t.dueDate && (
+                        <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 700 }}>마감 {mdd(t.dueDate)} (D+{Math.ceil((nowMs - new Date(t.dueDate).getTime()) / 86400000)})</span>
+                      )}
+                      {statSel === "rework" && (
+                        <span className="pill" style={{ background: "#ffedd5", color: "#c2410c", fontSize: 10 }}>재작업 #{t.reworkCount}</span>
                       )}
                       <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
                     </div>
