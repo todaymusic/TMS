@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, Suspense } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   api,
@@ -115,7 +114,6 @@ function DashboardInner() {
   const [who, setWho] = useState("all");
   const [month, setMonth] = useState("all");
 
-  const [q, setQ] = useState("");
   const { user: me } = useAuth();
 
   async function load() {
@@ -187,22 +185,7 @@ function DashboardInner() {
   }, [assignedRows, who]);
   const personName = assignees.find((p) => p.id === who)?.name ?? "";
 
-  // 검색: 프로젝트명 / 태스크 제목·업무영역
-  const search = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return { projects: [], tasks: [] };
-    return {
-      projects: projects.filter((p) => p.name.toLowerCase().includes(term)).slice(0, 5),
-      tasks: tasks
-        .filter(
-          (t) =>
-            t.title.toLowerCase().includes(term) ||
-            (t.subCategory?.toLowerCase().includes(term) ?? false),
-        )
-        .slice(0, 8),
-    };
-  }, [q, projects, tasks]);
-  const hasResults = search.projects.length > 0 || search.tasks.length > 0;
+  // (태스크·프로젝트 검색은 현황판으로 이동됨)
 
   async function generateDoc() {
     if (!description.trim()) {
@@ -329,58 +312,6 @@ function DashboardInner() {
           <div className="sub">업무를 쌓아두고 담당자에게 배분 · 미지정은 풀에 대기</div>
         </div>
         <div className="topbar-right">
-          <Link href="/links" className="btn" title="업무에 필요한 공용 링크 모음">
-            🔗 링크
-          </Link>
-          <div className="search" style={{ position: "relative" }}>
-            🔍
-            <input
-              placeholder="태스크 · 프로젝트 검색"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-            {q.trim() && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "calc(100% + 6px)",
-                  right: 0,
-                  width: 320,
-                  maxHeight: 360,
-                  overflow: "auto",
-                  background: "var(--surface, #fff)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 10,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-                  zIndex: 40,
-                  padding: 6,
-                }}
-              >
-                {!hasResults && (
-                  <div style={{ padding: 12, fontSize: 13, color: "var(--text-3)" }}>검색 결과가 없어요.</div>
-                )}
-                {search.projects.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => { router.push(`/projects/${p.id}`); setQ(""); }}
-                    style={{ padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 13.5 }}
-                  >
-                    📁 {p.name}
-                  </div>
-                ))}
-                {search.tasks.map((t) => (
-                  <div
-                    key={t.id}
-                    onClick={() => { if (t.project) router.push(`/projects/${t.project.id}`); setQ(""); }}
-                    style={{ padding: "8px 10px", borderRadius: 6, cursor: t.project ? "pointer" : "default", fontSize: 13.5, display: "flex", gap: 6, alignItems: "center" }}
-                  >
-                    📋 {t.title}
-                    {t.project && <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-3)" }}>{t.project.name}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
           <div className="avatar" style={{ background: me?.avatarColor ?? "#4f46e5" }}>
             {me ? me.name.slice(0, 1) : "나"}
           </div>

@@ -292,8 +292,22 @@ export default function CalendarPage() {
                   c.tasks.map((t) => {
                     const k = evKind(t, today);
                     return (
-                      <div key={t.id} className="cal-ev" style={EV_STYLE[k]}>
-                        {(t.assignee?.name?.slice(0, 1) ?? "") + ":" + t.title}
+                      <div
+                        key={t.id}
+                        className="cal-ev"
+                        style={{ ...EV_STYLE[k], display: "flex", alignItems: "center", gap: 4 }}
+                        title={t.assignee?.name ? `${t.assignee.name} · ${t.title}` : t.title}
+                      >
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: t.assignee?.avatarColor ?? "#9ca3af",
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
                       </div>
                     );
                   })}
