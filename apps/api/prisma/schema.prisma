@@ -40,6 +40,7 @@ enum TaskStatus {
   review // 검토중
   done // 완료
   completed_pending // 완료(검수 대기)
+  rejected // 미수락(반려) — 부여자 재요청/취소 대기
 }
 
 enum ProjectStatus {
@@ -212,6 +213,8 @@ model Task {
   plannedDate DateTime? // '오늘 하기'로 옮긴 날(오늘의 업무에 표시)
   dayOrder    Int? // 오늘의 업무 수동 정렬 순서
   acceptedAt  DateTime? // 요청받은 업무 수락 시각(수락해야 진행 가능)
+  rejectedAt  DateTime? // 미수락(반려) 시각
+  rejectReason String?  // 미수락 사유
   startedAt   DateTime?
   endedAt     DateTime?
   progress    Int       @default(0)

@@ -167,6 +167,53 @@ export class TasksService {
     return updated;
   }
 
+  /** 요청받은 업무 미수락(반려) — status=rejected, 사유 기록, 부여자에게 반려 대기 알림 */
+  async reject(id: string, reason: string) {
+    const task = await this.findOne(id);
+    const now = new Date();
+    const updated = await this.prisma.task.update({
+      where: { id },
+      data: {
+        status: TaskStatus.rejected,
+        rejectedAt: now,
+        rejectReason: reason,
+        acceptedAt: null,
+      },
+      include: taskInclude,
+    });
+    if (task.assignerId && task.assignerId !== task.assigneeId) {
+      const content = `${updated.assignee?.name ?? '담당자'}님이 «${task.title}» 업무를 미수락했어요 — 사유: ${reason}`;
+      await this.prisma.notification.create({
+        data: { userId: task.assignerId, type: 'task', content, link: '/dashboard' },
+      });
+      await this.push.sendToUser(task.assignerId, { title: 'TMS 알림', body: content, url: '/dashboard' });
+    }
+    return updated;
+  }
+
+  /** 반려된 업무 재요청 — 부여자가 다시 수락 요청, status=todo로 초기화, 담당자에게 알림 */
+  async requestAgain(id: string) {
+    const task = await this.findOne(id);
+    const updated = await this.prisma.task.update({
+      where: { id },
+      data: {
+        status: TaskStatus.todo,
+        rejectedAt: null,
+        rejectReason: null,
+        acceptedAt: null,
+      },
+      include: taskInclude,
+    });
+    if (task.assigneeId && task.assignerId !== task.assigneeId) {
+      const content = `«${task.title}» 업무 수락을 다시 요청했어요`;
+      await this.prisma.notification.create({
+        data: { userId: task.assigneeId, type: 'task', content, link: '/activity' },
+      });
+      await this.push.sendToUser(task.assigneeId, { title: 'TMS 알림', body: content, url: '/activity' });
+    }
+    return updated;
+  }
+
   async start(id: string) {
     const task = await this.findOne(id);
     if (!task.assigneeId)

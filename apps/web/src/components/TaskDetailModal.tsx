@@ -17,6 +17,7 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   review: "검토중",
   done: "완료",
   completed_pending: "완료(검수대기)",
+  rejected: "미수락(반려)",
 };
 const CAT_LABEL: Record<string, string> = { long: "롱", shorts: "쇼츠", project: "프로젝트" };
 

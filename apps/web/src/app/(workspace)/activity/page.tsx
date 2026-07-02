@@ -88,6 +88,8 @@ function ActivityInner() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [rejectId, setRejectId] = useState<string | null>(null); // 미수락 사유 입력 중인 업무
+  const [rejectText, setRejectText] = useState("");
   // 업무 종료 산출물 입력 모달
   const [endTask, setEndTask] = useState<Task | null>(null);
   const [endReport, setEndReport] = useState("");
@@ -269,6 +271,18 @@ function ActivityInner() {
     setBusy(id);
     try {
       await api.post(`/tasks/${id}/accept`, {});
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function reject(id: string, reason: string) {
+    setBusy(id);
+    try {
+      await api.post(`/tasks/${id}/reject`, { reason: reason.trim() });
+      setRejectId(null);
+      setRejectText("");
       await load();
     } finally {
       setBusy(null);
@@ -903,9 +917,14 @@ function ActivityInner() {
                           <span style={{ fontSize: 11, color: "var(--text-3)" }} title="요청자 · 요청일">
                             {t.assigner?.name} · {mdd(t.createdAt)}
                           </span>
-                          {!accepted ? (
+                          {t.status === "rejected" ? (
+                            <span className="pill" style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 10, fontWeight: 700 }}>미수락 · 재요청 대기</span>
+                          ) : !accepted ? (
                             isSelf ? (
-                              <button className="btn primary sm" onClick={() => accept(t.id)} disabled={busy === t.id}>수락</button>
+                              <span style={{ display: "flex", gap: 4 }}>
+                                <button className="btn primary sm" onClick={() => accept(t.id)} disabled={busy === t.id}>수락</button>
+                                <button className="btn sm" style={{ color: "#b91c1c", borderColor: "#f0c9c9" }} onClick={() => { setRejectId(t.id); setRejectText(""); }} disabled={busy === t.id}>미수락</button>
+                              </span>
                             ) : (
                               <span className="pill" style={{ background: "#fef9c3", color: "#a16207", fontSize: 10 }}>수락대기</span>
                             )
@@ -914,6 +933,26 @@ function ActivityInner() {
                               <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
                             </>
                           )}
+                          {rejectId === t.id ? (
+                            <div style={{ flexBasis: "100%", display: "flex", gap: 6, alignItems: "center", paddingTop: 4 }}>
+                              <input
+                                className="inp"
+                                autoFocus
+                                value={rejectText}
+                                onChange={(e) => setRejectText(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter" && rejectText.trim()) void reject(t.id, rejectText); }}
+                                placeholder="미수락 사유 (부여자에게 전달)"
+                                style={{ flex: 1, fontSize: 12.5 }}
+                              />
+                              <button className="btn sm" style={{ color: "#fff", background: "#b91c1c", borderColor: "#b91c1c" }} onClick={() => reject(t.id, rejectText)} disabled={busy === t.id || !rejectText.trim()}>미수락 확정</button>
+                              <button className="btn sm" onClick={() => { setRejectId(null); setRejectText(""); }} disabled={busy === t.id}>취소</button>
+                            </div>
+                          ) : null}
+                          {t.status === "rejected" && t.rejectReason ? (
+                            <div style={{ flexBasis: "100%", fontSize: 11.5, color: "#b91c1c", paddingLeft: 2 }}>
+                              🚫 미수락 사유: {t.rejectReason}
+                            </div>
+                          ) : null}
                           {t.reworkCount && t.reworkReason ? (
                             <div style={{ flexBasis: "100%", fontSize: 11.5, color: "#c2410c", paddingLeft: 2 }}>
                               🔁 재작업 사유: {t.reworkReason}

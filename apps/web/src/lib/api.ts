@@ -57,7 +57,8 @@ export type TaskStatus =
   | 'paused'
   | 'review'
   | 'done'
-  | 'completed_pending';
+  | 'completed_pending'
+  | 'rejected';
 export type ProjectStatus = 'active' | 'archived';
 
 export type UserBrief = {
@@ -108,6 +109,8 @@ export type Task = {
   plannedDate?: string | null;
   dayOrder?: number | null;
   acceptedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectReason?: string | null;
   startedAt?: string | null;
   endedAt?: string | null;
   createdAt?: string;

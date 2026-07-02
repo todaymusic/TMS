@@ -50,6 +50,18 @@ export class TasksController {
     return this.tasks.accept(id);
   }
 
+  // 요청받은 업무 미수락(반려, +사유)
+  @Post(':id/reject')
+  reject(@Param('id') id: string, @Body() body: { reason?: string }) {
+    return this.tasks.reject(id, body?.reason ?? '');
+  }
+
+  // 반려된 업무 재요청(부여자)
+  @Post(':id/request-again')
+  requestAgain(@Param('id') id: string) {
+    return this.tasks.requestAgain(id);
+  }
+
   // 완료 검수: AI 평가 생성
   @Post(':id/ai-review')
   aiReview(@Param('id') id: string) {

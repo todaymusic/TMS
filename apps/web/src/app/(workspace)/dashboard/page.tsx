@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import TaskDetailModal from "@/components/TaskDetailModal";
+import ReviewModal from "../activity/ReviewModal";
 
 // 업무 대분류 (category) — 대시보드는 롱/쇼츠만(프로젝트는 프로젝트 탭에서)
 const CATEGORIES = [
@@ -60,7 +61,9 @@ function deadlineDiff(t: Task): { txt: string; color: string } {
   return { txt: "정시", color: "#16a34a" };
 }
 function statusLabel(t: Task) {
-  if (t.status === "done" || t.status === "completed_pending") return "완료";
+  if (t.status === "done") return "완료";
+  if (t.status === "completed_pending") return "검수대기";
+  if (t.status === "rejected") return "미수락";
   if (t.status === "doing") return "진행중";
   if (t.status === "paused") return "중단";
   return "대기";
@@ -99,6 +102,7 @@ export default function DashboardPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   // 업무 풀 탭: 미배정 / 배정 · 배정 탭 담당자·월 필터
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [reviewTask, setReviewTask] = useState<Task | null>(null);
   const [tab, setTab] = useState<"unassigned" | "assigned">("unassigned");
   const [who, setWho] = useState("all");
   const [month, setMonth] = useState("all");
@@ -270,6 +274,17 @@ export default function DashboardPage() {
       await load();
     } catch (e) {
       setLoadErr(e instanceof Error ? e.message : "삭제 실패");
+    } finally {
+      setBusyId(null);
+    }
+  }
+  async function requestAgain(taskId: string) {
+    setBusyId(taskId);
+    try {
+      await api.post(`/tasks/${taskId}/request-again`, {});
+      await load();
+    } catch (e) {
+      setLoadErr(e instanceof Error ? e.message : "재요청 실패");
     } finally {
       setBusyId(null);
     }
@@ -458,33 +473,52 @@ export default function DashboardPage() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left", color: "var(--text-3)", fontSize: 11 }}>
-                        {["업무", "담당자", "상태", "요청일", "완료일", "소요", "마감대비", "재작업", "등급"].map((hd) => (
-                          <th key={hd} style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{hd}</th>
+                        {["업무", "담당자", "상태", "요청일", "수락일", "미수락 사유", "소요", "완료일", "마감대비", "재작업", "등급", ""].map((hd, i) => (
+                          <th key={i} style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{hd}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {assignedRows.length === 0 && (
-                        <tr><td colSpan={9} style={{ padding: 20, color: "var(--text-3)", textAlign: "center" }}>배정된 업무가 없어요.</td></tr>
+                        <tr><td colSpan={12} style={{ padding: 20, color: "var(--text-3)", textAlign: "center" }}>배정된 업무가 없어요.</td></tr>
                       )}
                       {assignedRows.map((t) => {
                         const dd = deadlineDiff(t);
+                        const isRejected = t.status === "rejected";
+                        const isReview = t.status === "completed_pending";
+                        const canManage = !!me && (!!me.isAdmin || t.assigner?.id === me.id);
+                        const stBg = isRejected ? "#fee2e2" : isReview ? "#fef3c7" : "#eef0fe";
+                        const stFg = isRejected ? "#b91c1c" : isReview ? "#a16207" : "#4338ca";
                         return (
-                          <tr key={t.id} onClick={() => setDetailId(t.id)} title="업무 상세 보기" style={{ borderBottom: "1px solid var(--border)", cursor: "pointer" }}>
-                            <td style={{ padding: "8px 10px" }}>
+                          <tr key={t.id} onClick={() => setDetailId(t.id)} title="업무 상세 보기" style={{ borderBottom: "1px solid var(--border)", cursor: "pointer", background: isRejected ? "#fff5f5" : undefined }}>
+                            <td style={{ padding: "8px 10px", minWidth: 150 }}>
                               {t.project && <span style={{ color: "var(--text-3)", fontSize: 11 }}>({t.project.name}) </span>}
                               {t.title}
                             </td>
                             <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{t.assignee?.name}</td>
                             <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
-                              <span className="pill gray" style={{ fontSize: 10 }}>{statusLabel(t)}</span>
+                              <span className="pill" style={{ background: stBg, color: stFg, fontSize: 10 }}>{statusLabel(t)}</span>
                             </td>
                             <td style={{ padding: "8px 10px", whiteSpace: "nowrap", color: "var(--text-3)" }}>{fmtDate(t.createdAt)}</td>
-                            <td style={{ padding: "8px 10px", whiteSpace: "nowrap", color: "var(--text-3)" }}>{fmtDate(t.endedAt)}</td>
+                            <td style={{ padding: "8px 10px", whiteSpace: "nowrap", color: "var(--text-3)" }}>{fmtDate(t.acceptedAt)}</td>
+                            <td style={{ padding: "8px 10px", fontSize: 11.5, color: "#b91c1c", maxWidth: 160 }}>{isRejected && t.rejectReason ? t.rejectReason : "—"}</td>
                             <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{duration(t)}</td>
+                            <td style={{ padding: "8px 10px", whiteSpace: "nowrap", color: "var(--text-3)" }}>{fmtDate(t.endedAt)}</td>
                             <td style={{ padding: "8px 10px", whiteSpace: "nowrap", color: dd.color }}>{dd.txt}</td>
                             <td style={{ padding: "8px 10px", textAlign: "center", color: t.reworkCount ? "#c2410c" : "var(--text-3)" }}>{t.reworkCount ? `#${t.reworkCount}` : "—"}</td>
                             <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{t.grade ? <span className="pill" style={{ background: "#ede9fe", color: "#6d28d9", fontSize: 10 }}>{t.grade}</span> : "—"}</td>
+                            <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
+                              {isRejected && canManage ? (
+                                <span style={{ display: "flex", gap: 4 }}>
+                                  <button className="btn sm" style={{ color: "#4338ca", borderColor: "#c7d2fe" }} onClick={() => requestAgain(t.id)} disabled={busyId === t.id} title="다시 수락 요청">↻ 재요청</button>
+                                  <button className="btn sm" style={{ color: "#dc2626" }} onClick={() => delPool(t.id)} disabled={busyId === t.id} title="업무 취소(삭제)">🗑</button>
+                                </span>
+                              ) : isReview && canManage ? (
+                                <button className="btn primary sm" onClick={() => setReviewTask(t)} disabled={busyId === t.id} title="완료 검수 · 등급">🔍 검수</button>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
                           </tr>
                         );
                       })}
@@ -626,6 +660,14 @@ export default function DashboardPage() {
           onClose={() => setDetailId(null)}
           onSaved={() => { setDetailId(null); void load(); }}
           onDeleted={() => { setDetailId(null); void load(); }}
+        />
+      )}
+
+      {reviewTask && (
+        <ReviewModal
+          task={reviewTask}
+          onClose={() => setReviewTask(null)}
+          onDone={() => { setReviewTask(null); void load(); }}
         />
       )}
     </>
