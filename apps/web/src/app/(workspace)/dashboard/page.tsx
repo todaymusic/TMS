@@ -147,8 +147,10 @@ function DashboardInner() {
     .filter(Boolean)
     .join(" · ");
 
-  // 미할당 업무 풀 = 담당자 없는 미완료 업무
-  const pool = tasks.filter((t) => !t.assignee && t.status !== "done");
+  // 미배정 풀 = 내가 만들었지만(assigner=나) 아직 담당자 미지정인 미완료 업무 (남이 만든 건 안 보임)
+  const pool = tasks.filter(
+    (t) => !t.assignee && t.status !== "done" && t.assigner?.id === me?.id,
+  );
   // 배정 업무 = 내가 배정(요청)한 업무만 (내 활동 > 요청한 업무와 동일)
   const assigned = tasks.filter(
     (t) => t.assigner?.id === me?.id && !!t.assignee && t.assignee.id !== me?.id,
