@@ -33,6 +33,12 @@ export class AiController {
     return this.ai.generateTaskDoc(dto);
   }
 
+  // 업무 부여 폼: 상세 설명 → 예상 소요시간(분) 자동 측정
+  @Post('estimate-duration')
+  estimateDuration(@Body() dto: TaskDocDto) {
+    return this.ai.estimateDuration(dto);
+  }
+
   // 프로젝트 상세: 대화 → AI 소통 요약 (저장 후 반환)
   @Post('project-summary/:id')
   projectSummary(@Param('id') id: string) {

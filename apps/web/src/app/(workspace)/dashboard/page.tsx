@@ -98,7 +98,11 @@ function DashboardInner() {
   const [submitMsg, setSubmitMsg] = useState<string | null>(null);
   const [aiDoc, setAiDoc] = useState<string>("");
   const [aiBusy, setAiBusy] = useState(false);
-  const [showDetail, setShowDetail] = useState(false);
+  const [docOpen, setDocOpen] = useState(false);
+  // AI 예상 소요시간 (상세설명 기반 자동 측정)
+  const [estimate, setEstimate] = useState<{ minutes: number; label: string; rationale: string } | null>(null);
+  const [estimating, setEstimating] = useState(false);
+  const [estimatedText, setEstimatedText] = useState<string>(""); // 마지막으로 측정한 상세설명(중복 호출 방지)
   const [busyId, setBusyId] = useState<string | null>(null);
   // 업무 풀 탭: 미배정 / 배정 · 배정 탭 담당자·월 필터
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -222,6 +226,26 @@ function DashboardInner() {
     }
   }
 
+  // 상세 설명 → AI 예상 소요시간 측정 (설명 바뀌었을 때만)
+  async function estimateDuration(force = false) {
+    const memo = description.trim();
+    if (!memo) { setEstimate(null); setEstimatedText(""); return; }
+    if (!force && memo === estimatedText) return; // 이미 이 내용으로 측정함
+    setEstimating(true);
+    try {
+      const r = await api.post<{ minutes: number; label: string; rationale: string }>(
+        "/ai/estimate-duration",
+        { memo, title, category, subCategory: subcat },
+      );
+      setEstimate(r);
+      setEstimatedText(memo);
+    } catch {
+      setEstimate(null);
+    } finally {
+      setEstimating(false);
+    }
+  }
+
   // 업무 생성 — 담당자 없으면 풀에 쌓임(assigneeId 미전송)
   async function submitTask() {
     if (!title.trim()) {
@@ -245,11 +269,14 @@ function DashboardInner() {
         description: description.trim() || undefined,
         descriptionPrompt: aiPrompt.trim() || undefined,
         aiDescriptionDoc: aiDoc.trim() || undefined,
+        estimateMinutes: estimate?.minutes,
       });
       setSubmitMsg(assigneeId ? "✅ 담당자에게 부여했습니다" : "✅ 업무 풀에 쌓았습니다 (담당자 나중에 지정)");
       setTitle("");
       setDescription("");
       setAiDoc("");
+      setEstimate(null);
+      setEstimatedText("");
       await load();
     } catch (e) {
       setSubmitMsg(e instanceof Error ? e.message : "생성 실패");
@@ -537,11 +564,25 @@ function DashboardInner() {
           <div className="dash-right">
             <div className="card">
               <div className="panel-head">
-                <div className="sec-title"><span className="em">📋</span> 업무 부여 / 쌓기</div>
+                <div className="sec-title"><span className="em">➕</span> 업무 추가</div>
               </div>
 
+              {/* 제목 + 우선순위 */}
               <div className="assign-field">
-                <label>업무 대분류</label>
+                <label>제목 · 우선순위</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input className="inp" style={{ flex: 1 }} placeholder="예: 6월 신메뉴 포스터 디자인" value={title} onChange={(e) => setTitle(e.target.value)} />
+                  <select className="inp" style={{ width: 100, flexShrink: 0 }} value={prio} onChange={(e) => setPrio(e.target.value)}>
+                    {PRIOS.map((p) => (
+                      <option key={p.key} value={p.key}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* 대분류 */}
+              <div className="assign-field">
+                <label>대분류</label>
                 <div className="cat-row">
                   {CATEGORIES.map((c) => (
                     <div key={c.key} className={`cat${category === c.key ? " on" : ""}`} onClick={() => setCategory(c.key)}>
@@ -551,108 +592,84 @@ function DashboardInner() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                className="btn sm"
-                style={{ marginBottom: 12, fontSize: 12, padding: "4px 12px" }}
-                onClick={() => setShowDetail((s) => !s)}
-              >
-                {showDetail ? "▲ 접기" : "✏️ 상세 입력"}
-              </button>
+              {/* 소분류 */}
+              <div className="assign-field">
+                <label>소분류 (업무 영역)</label>
+                <div className="chips">
+                  {SUBCATS.map((s) => (
+                    <span key={s} className={`chip${subcat === s ? " on" : ""}`} onClick={() => setSubcat(s)}>{s}</span>
+                  ))}
+                </div>
+              </div>
 
-              {showDetail && (
-                <>
-                  <div className="assign-field">
-                    <label>소분류 (업무 영역)</label>
-                    <div className="chips">
-                      {SUBCATS.map((s) => (
-                        <span key={s} className={`chip${subcat === s ? " on" : ""}`} onClick={() => setSubcat(s)}>{s}</span>
-                      ))}
-                    </div>
-                  </div>
+              {/* 산출물 요구 */}
+              <div className="assign-field">
+                <label>산출물 요구</label>
+                <div className="chk-row">
+                  <label className="chk">
+                    <input type="checkbox" checked={needReport} onChange={(e) => setNeedReport(e.target.checked)} /> 📊 보고링크
+                  </label>
+                  <label className="chk">
+                    <input type="checkbox" checked={needVideo} onChange={(e) => setNeedVideo(e.target.checked)} /> 🎥 설명영상
+                  </label>
+                </div>
+              </div>
 
-                  <div className="assign-field">
-                    <label>우선순위</label>
-                    <div className="prio-row">
-                      {PRIOS.map((p) => (
-                        <div key={p.key} className={`prio ${p.key}${prio === p.key ? " on" : ""}`} onClick={() => setPrio(p.key)}>{p.label}</div>
-                      ))}
-                    </div>
-                  </div>
+              {/* 담당자 */}
+              <div className="assign-field">
+                <label>담당자 <span style={{ color: "var(--text-3)", fontWeight: 400 }}>(미지정 시 풀에 쌓임)</span></label>
+                <div className="chips">
+                  <span className={`chip${assigneeId === "" ? " on" : ""}`} onClick={() => setAssigneeId("")}>미지정(풀)</span>
+                  {users.map((u) => (
+                    <span key={u.id} className={`chip${assigneeId === u.id ? " on" : ""}`} onClick={() => setAssigneeId(u.id)}>{u.name}</span>
+                  ))}
+                </div>
+              </div>
 
-                  <div className="assign-field">
-                    <label>산출물 요구</label>
-                    <div className="chk-row">
-                      <label className="chk">
-                        <input type="checkbox" checked={needReport} onChange={(e) => setNeedReport(e.target.checked)} /> 📊 보고링크
-                      </label>
-                      <label className="chk">
-                        <input type="checkbox" checked={needVideo} onChange={(e) => setNeedVideo(e.target.checked)} /> 🎥 설명영상
-                      </label>
-                    </div>
+              {/* 상세 설명 + AI 예상 소요시간 자동 측정 */}
+              <div className="assign-field">
+                <label>상세 설명</label>
+                <textarea
+                  className="inp"
+                  placeholder="업무 내용을 적으면 AI가 예상 소요시간을 자동 측정해줘요 (요약본도 만들 수 있어요)"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  onBlur={() => void estimateDuration()}
+                  style={{ minHeight: 84 }}
+                />
+                {outputHint && <div className="field-hint">💡 {outputHint}</div>}
+                {estimating ? (
+                  <div className="field-hint">⏱ 예상 소요시간 측정 중…</div>
+                ) : estimate ? (
+                  <div className="field-hint" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span>⏱ 예상 소요시간 <b style={{ color: "var(--text-1)" }}>{estimate.label}</b></span>
+                    <button type="button" className="btn sm" style={{ padding: "2px 8px" }} onClick={() => void estimateDuration(true)}>다시 측정</button>
+                    <span style={{ flexBasis: "100%", color: "var(--text-3)" }}>{estimate.rationale}</span>
                   </div>
+                ) : description.trim() ? (
+                  <button type="button" className="btn sm" style={{ marginTop: 6 }} onClick={() => void estimateDuration(true)}>⏱ 소요시간 측정</button>
+                ) : null}
+              </div>
 
-                  <div className="assign-field">
-                    <label>담당자 <span style={{ color: "var(--text-3)", fontWeight: 400 }}>(미지정 시 풀에 쌓임)</span></label>
-                    <div className="chips">
-                      <span className={`chip${assigneeId === "" ? " on" : ""}`} onClick={() => setAssigneeId("")}>미지정(풀)</span>
-                      {users.map((u) => (
-                        <span key={u.id} className={`chip${assigneeId === u.id ? " on" : ""}`} onClick={() => setAssigneeId(u.id)}>{u.name}</span>
-                      ))}
-                    </div>
-                  </div>
+              {/* 마감기한 + 업무설명 요약본 링크 */}
+              <div className="assign-field">
+                <label>마감기한 · 업무설명 요약본</label>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input className="inp" type="date" style={{ flex: 1 }} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                  <button type="button" className="btn sm" style={{ flexShrink: 0 }} onClick={() => setDocOpen(true)} title="AI 업무설명 요약본 작성·확인">
+                    📄 요약본{aiDoc.trim() ? " ✓" : ""}
+                  </button>
+                </div>
+              </div>
 
-                  <div className="assign-field">
-                    <label>태스크 제목</label>
-                    <input className="inp" placeholder="예: 6월 신메뉴 포스터 디자인" value={title} onChange={(e) => setTitle(e.target.value)} />
-                  </div>
-
-                  <div className="assign-field">
-                    <label>마감일</label>
-                    <input className="inp" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-                  </div>
-
-                  <div className="assign-field">
-                    <label>상세 설명 (간략 메모)</label>
-                    <textarea className="inp" placeholder="업무를 간략히 적으면 AI가 정돈된 업무설명 doc으로 만들어줘요" value={description} onChange={(e) => setDescription(e.target.value)} />
-                    {outputHint && <div className="field-hint">💡 {outputHint}</div>}
-                  </div>
-
-                  <div className="assign-field">
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <label style={{ margin: 0 }}>상세 설명 프롬프트 (AI 정리)</label>
-                      <button type="button" className="btn sm" style={{ marginLeft: "auto", padding: "3px 9px" }} onClick={() => setShowPrompt((s) => !s)}>
-                        {showPrompt ? "숨기기" : "프롬프트 수정"}
-                      </button>
-                    </div>
-                    {showPrompt && (
-                      <textarea className="inp" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} style={{ minHeight: 96 }} />
-                    )}
-                    <button type="button" className="btn" style={{ width: "100%", marginTop: 8 }} onClick={generateDoc} disabled={aiBusy}>
-                      {aiBusy ? "생성 중…" : "🤖 AI 업무설명 doc 생성"}
-                    </button>
-                    {aiDoc && (
-                      <textarea className="inp" value={aiDoc} onChange={(e) => setAiDoc(e.target.value)} style={{ minHeight: 140, marginTop: 8 }} />
-                    )}
-                    {aiDoc && <div className="field-hint">✏️ 생성된 업무설명 doc — 수정 가능, 함께 저장됩니다</div>}
-                  </div>
-                </>
+              {submitMsg && (
+                <div className="field-hint" style={{ color: submitMsg.startsWith("✅") ? "#16a34a" : "#dc2626" }}>{submitMsg}</div>
               )}
 
-              <div className="assign-field">
-                {!showDetail && (
-                  <div className="assign-field">
-                    <label>태스크 제목</label>
-                    <input className="inp" placeholder="빠르게 제목만 적고 풀에 쌓기" value={title} onChange={(e) => setTitle(e.target.value)} />
-                  </div>
-                )}
-                {submitMsg && (
-                  <div className="field-hint" style={{ color: submitMsg.startsWith("✅") ? "#16a34a" : "#dc2626" }}>{submitMsg}</div>
-                )}
-                <button className="btn primary" style={{ width: "100%" }} onClick={submitTask} disabled={submitting}>
-                  {submitting ? "처리 중…" : assigneeId ? "부여하고 알림 보내기" : "＋ 풀에 쌓기 (담당자 나중에)"}
-                </button>
-              </div>
+              {/* 완료 */}
+              <button className="btn primary" style={{ width: "100%", marginTop: 4 }} onClick={submitTask} disabled={submitting}>
+                {submitting ? "처리 중…" : assigneeId ? "완료 · 담당자에게 배정" : "완료 · 업무풀에 쌓기"}
+              </button>
             </div>
           </div>
         </div>
@@ -673,6 +690,39 @@ function DashboardInner() {
           onClose={() => setReviewTask(null)}
           onDone={() => { setReviewTask(null); void load(); }}
         />
+      )}
+
+      {docOpen && (
+        <div
+          onClick={() => setDocOpen(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", zIndex: 60, padding: 20 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: "100%", maxWidth: 560, maxHeight: "85vh", overflow: "auto", padding: 22 }}>
+            <div className="sec-title mb16"><span className="em">📄</span> 업무설명 요약본</div>
+            <div className="field-hint" style={{ marginBottom: 10 }}>
+              상세 설명을 AI가 정돈된 업무설명 문서로 만들어줍니다. 직접 수정·추가도 가능해요.
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <button type="button" className="btn" onClick={generateDoc} disabled={aiBusy}>
+                {aiBusy ? "생성 중…" : "🤖 AI 요약본 생성"}
+              </button>
+              <button type="button" className="btn sm" style={{ marginLeft: "auto" }} onClick={() => setShowPrompt((s) => !s)}>
+                {showPrompt ? "프롬프트 숨기기" : "프롬프트 수정"}
+              </button>
+            </div>
+            {showPrompt && (
+              <textarea className="inp" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} style={{ minHeight: 88, marginBottom: 8 }} />
+            )}
+            <textarea
+              className="inp"
+              value={aiDoc}
+              onChange={(e) => setAiDoc(e.target.value)}
+              placeholder="AI로 생성하거나 직접 작성·추가하세요"
+              style={{ minHeight: 240 }}
+            />
+            <button className="btn primary" style={{ width: "100%", marginTop: 12 }} onClick={() => setDocOpen(false)}>확인</button>
+          </div>
+        </div>
       )}
     </>
   );

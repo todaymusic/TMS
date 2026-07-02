@@ -79,6 +79,64 @@ export class AiService {
     return { doc: this.textOf(msg) };
   }
 
+  /** 상세 설명 → 예상 소요시간(분) 자동 측정 */
+  async estimateDuration(input: {
+    memo: string;
+    title?: string;
+    category?: string;
+    subCategory?: string;
+  }): Promise<{ minutes: number; label: string; rationale: string }> {
+    if (!input.memo?.trim()) {
+      throw new BadRequestException('상세 설명(메모)이 비어 있습니다');
+    }
+    const client = this.ensureClient();
+    const context = [
+      input.title ? `제목: ${input.title}` : null,
+      input.category ? `대분류: ${input.category}` : null,
+      input.subCategory ? `업무영역: ${input.subCategory}` : null,
+      '',
+      '업무 상세 설명:',
+      input.memo.trim(),
+    ]
+      .filter((l) => l !== null)
+      .join('\n');
+
+    const msg = await client.messages.create({
+      model: MODEL,
+      max_tokens: 500,
+      system:
+        '콘텐츠 제작팀(롱폼/쇼츠/디자인/개발/마케팅 등)의 업무 상세 설명을 보고 ' +
+        '숙련된 실무자 1명이 집중해서 처리할 때 걸리는 순수 작업 시간을 추정하는 어시스턴트입니다. ' +
+        '(1) minutes: 예상 소요시간을 분 단위 정수로. (2) label: 사람이 읽기 쉬운 표기(예: "약 3시간", "약 1일(8시간)", "약 30분"). ' +
+        '(3) rationale: 한 문장 근거. 설명이 빈약하면 보수적으로 잡되 추정은 반드시 제시하세요.',
+      messages: [{ role: 'user', content: context }],
+      output_config: {
+        format: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              minutes: { type: 'integer', description: '예상 소요시간(분)' },
+              label: { type: 'string', description: '읽기 쉬운 표기' },
+              rationale: { type: 'string', description: '한 문장 근거' },
+            },
+            required: ['minutes', 'label', 'rationale'],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    try {
+      return JSON.parse(this.textOf(msg)) as {
+        minutes: number;
+        label: string;
+        rationale: string;
+      };
+    } catch {
+      throw new BadRequestException('AI 응답을 파싱하지 못했습니다');
+    }
+  }
+
   /** 회의 트랜스크립트 → 간결한 제목(2단어 정도) + 회의 개요(마크다운) */
   async meetingSummary(transcript: string): Promise<{ title: string; summary: string }> {
     if (!transcript?.trim()) {

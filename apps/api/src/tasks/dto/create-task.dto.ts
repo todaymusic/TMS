@@ -75,6 +75,11 @@ export class CreateTaskDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  estimateMinutes?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
   @Max(100)
   progress?: number;
 
