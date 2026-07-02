@@ -32,13 +32,36 @@ export class AuthService {
       throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다');
     }
     const token = await this.jwt.signAsync({ sub: user.id, email: user.email });
-    return { accessToken: token, user: this.sanitize(user) };
+    // 로그인 = 새 근무 세션 시작: 접속 갱신 + 퇴근 상태 해제
+    const fresh = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastSeenAt: new Date(), clockedOut: false },
+    });
+    return { accessToken: token, user: this.sanitize(fresh) };
   }
 
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('사용자를 찾을 수 없습니다');
     return this.sanitize(user);
+  }
+
+  /** 하트비트 — 접속 중임을 알림(현황판 온라인 판정용) */
+  async heartbeat(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastSeenAt: new Date() },
+    });
+    return { ok: true };
+  }
+
+  /** 업무 종료(퇴근) — 현황판에 '업무 종료'로 표시 */
+  async clockOut(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { clockedOut: true, lastSeenAt: new Date() },
+    });
+    return { ok: true };
   }
 
   /** 비밀번호 변경 — 현재 비밀번호 검증 후 교체 (로그인 사용자) */

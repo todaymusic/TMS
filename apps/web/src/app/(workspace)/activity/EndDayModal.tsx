@@ -62,7 +62,13 @@ export default function EndDayModal({
       } catch {
         review = "(AI 평가를 생성하지 못했습니다)";
       }
-      // 4) 로컬 저장 (지난 업무 조회 시 표시)
+      // 4) 퇴근(업무 종료) 상태 → 현황판에 '업무 종료'로 표시
+      try {
+        await api.post("/auth/clock-out", {});
+      } catch {
+        /* noop */
+      }
+      // 5) 로컬 저장 (지난 업무 조회 시 표시)
       try {
         localStorage.setItem(
           dailyKey(userId, dateKey),

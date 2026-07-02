@@ -82,6 +82,8 @@ model User {
   avatarColor   String     @default("#4f46e5")
   status        UserStatus @default(off)
   statusMessage String?
+  lastSeenAt    DateTime? // 마지막 접속(하트비트) 시각 — 현황판 온라인/오프라인 판정
+  clockedOut    Boolean    @default(false) // 업무 종료(퇴근) 상태 — 현황판 표시
   workStart     String? // 출근 시간 "HH:mm" (퇴근 알림용)
   workEnd       String? // 퇴근 시간 "HH:mm"
   createdAt     DateTime   @default(now())

@@ -45,7 +45,20 @@ export default function MonitorPage() {
       doingByUser.set(t.assignee.id, t);
     }
   }
-  const onlineCount = users.filter((u) => u.status !== "off").length;
+  // 접속 판정: 하트비트(60s)보다 넉넉히 2.5분 이내면 온라인
+  const OFFLINE_MS = 150_000;
+  const nowMs = Date.now();
+  const isOnline = (u: User) =>
+    !!u.lastSeenAt && nowMs - new Date(u.lastSeenAt).getTime() < OFFLINE_MS;
+  // 현황: 오프라인(미접속) > 업무 종료(퇴근) > 진행중 > 대기
+  const presenceOf = (u: User): { label: string; dot: string; sub?: string } => {
+    if (!isOnline(u)) return { label: "오프라인", dot: "#9ca3af" };
+    if (u.clockedOut) return { label: "업무 종료", dot: "#6366f1" };
+    const task = doingByUser.get(u.id);
+    if (task) return { label: "진행중", dot: "#22c55e", sub: task.title };
+    return { label: "대기 중", dot: "#22c55e" };
+  };
+  const onlineCount = users.filter(isOnline).length;
 
   // 검색: 프로젝트명 / 태스크 제목·업무영역
   const search = useMemo(() => {
@@ -148,7 +161,8 @@ export default function MonitorPage() {
             {loading && <div style={{ color: "var(--text-3)", fontSize: 13 }}>불러오는 중…</div>}
             {!loading &&
               users.map((m) => {
-                const task = doingByUser.get(m.id);
+                const p = presenceOf(m);
+                const task = p.label === "진행중" ? doingByUser.get(m.id) : undefined;
                 const pct = task?.progress ?? 0;
                 return (
                   <Link
@@ -163,7 +177,7 @@ export default function MonitorPage() {
                         <div className="avatar" style={{ background: m.avatarColor, width: 36, height: 36 }}>
                           {m.name.slice(0, 1)}
                         </div>
-                        <span className={`dot ${m.status}`} />
+                        <span className="dot" style={{ background: p.dot }} />
                       </div>
                       <div>
                         <div className="member-name">{m.name}</div>
@@ -174,8 +188,8 @@ export default function MonitorPage() {
                       </span>
                     </div>
                     <div className="member-task">
-                      {m.status === "off" ? "오프라인" : task ? "진행중 · " : "대기 중"}
-                      <b>{m.status === "off" ? "" : (task?.title ?? "")}</b>
+                      {p.label}{p.sub ? " · " : ""}
+                      <b>{p.sub ?? ""}</b>
                     </div>
                     {task?.statusMemo && (
                       <div

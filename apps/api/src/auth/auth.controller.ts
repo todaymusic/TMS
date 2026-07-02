@@ -59,6 +59,20 @@ export class AuthController {
     return this.auth.me(req.user!.id);
   }
 
+  // 접속 중 하트비트(현황판 온라인 판정)
+  @UseGuards(JwtAuthGuard)
+  @Post('heartbeat')
+  heartbeat(@Req() req: Request & { user?: { id: string } }) {
+    return this.auth.heartbeat(req.user!.id);
+  }
+
+  // 업무 종료(퇴근)
+  @UseGuards(JwtAuthGuard)
+  @Post('clock-out')
+  clockOut(@Req() req: Request & { user?: { id: string } }) {
+    return this.auth.clockOut(req.user!.id);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('change-password')
   changePassword(

@@ -50,6 +50,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {});
     }
+
+    // 접속 하트비트 — 현황판 온라인/오프라인 판정용 (탭 닫히면 멈춰서 곧 오프라인)
+    const beat = () => {
+      if (localStorage.getItem("tms_token")) {
+        api.post("/auth/heartbeat", {}).catch(() => {});
+      }
+    };
+    beat();
+    const hb = setInterval(beat, 60_000);
+    return () => clearInterval(hb);
   }, []);
 
   async function login(email: string, password: string) {

@@ -235,6 +235,11 @@ export class TasksService {
       this.prisma.workLog.create({
         data: { userId: task.assigneeId, taskId: id, startedAt: now },
       }),
+      // 업무를 시작/재개하면 '퇴근' 상태 해제 + 접속 갱신
+      this.prisma.user.update({
+        where: { id: task.assigneeId },
+        data: { clockedOut: false, lastSeenAt: now },
+      }),
     ]);
     return updated;
   }
@@ -272,6 +277,11 @@ export class TasksService {
       }),
       this.prisma.workLog.create({
         data: { userId: task.assigneeId, taskId: id, startedAt: now },
+      }),
+      // 업무를 시작/재개하면 '퇴근' 상태 해제 + 접속 갱신
+      this.prisma.user.update({
+        where: { id: task.assigneeId },
+        data: { clockedOut: false, lastSeenAt: now },
       }),
     ]);
     return updated;

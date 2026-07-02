@@ -239,6 +239,8 @@ export type User = {
   avatarColor: string;
   status: UserStatus;
   statusMessage: string | null;
+  lastSeenAt?: string | null;
+  clockedOut?: boolean;
   isAdmin?: boolean;
   leaveBalance?: number;
   workStart?: string | null;
