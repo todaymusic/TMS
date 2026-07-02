@@ -9,6 +9,7 @@ import TaskDetailModal from "@/components/TaskDetailModal";
 import TaskDocModal from "@/components/TaskDocModal";
 import ScheduleBoard from "@/components/ScheduleBoard";
 import ReviewModal from "./ReviewModal";
+import EndDayModal, { dailyKey } from "./EndDayModal";
 
 const PRI: Record<Priority, { label: string; bg: string; fg: string }> = {
   urgent: { label: "긴급", bg: "#fee2e2", fg: "#b91c1c" },
@@ -111,6 +112,8 @@ function ActivityInner() {
   const [listDragId, setListDragId] = useState<string | null>(null);
   // 오늘의 업무 → 업무 리스트로 되돌리는 드래그(plannedDate 해제)
   const [todayDragId, setTodayDragId] = useState<string | null>(null);
+  // 업무 종료(오늘 리포트) 모달
+  const [endDayOpen, setEndDayOpen] = useState(false);
   // 현재 업무중: 메인 업무 지정(개인) + 메인/서브 드래그
   const [mainTaskId, setMainTaskId] = useState<string | null>(null);
   const [curDragId, setCurDragId] = useState<string | null>(null);
@@ -316,7 +319,12 @@ function ActivityInner() {
   const doingNow = tasks.filter((t) => t.status === "doing");
   const todoNow = tasks.filter((t) => t.status === "todo");
   const nowMs = Date.now();
-  const overdueNow = tasks.filter((t) => stateOf(t) !== "done" && t.dueDate && new Date(t.dueDate).getTime() < nowMs);
+  const dueMonthKey = (t: Task) =>
+    t.dueDate ? `${new Date(t.dueDate).getFullYear()}-${String(new Date(t.dueDate).getMonth() + 1).padStart(2, "0")}` : "";
+  // 마감초과 = 선택한 달에 마감이면서 아직 미완료·마감 지난 업무
+  const overdueNow = tasks.filter(
+    (t) => stateOf(t) !== "done" && t.dueDate && new Date(t.dueDate).getTime() < nowMs && dueMonthKey(t) === statMonthKey,
+  );
   const reworkTasks = tasks.filter((t) => (t.reworkCount ?? 0) > 0);
   const statList =
     statSel === "done" ? doneInMonth
@@ -330,7 +338,6 @@ function ActivityInner() {
   selDate.setDate(selDate.getDate() + dayOffset);
   const selKey = ymd(selDate);
   const dayLabel = dayOffset === 0 ? "오늘" : dayOffset === -1 ? "어제" : dayOffset === 1 ? "내일" : `${selDate.getMonth() + 1}/${selDate.getDate()}`;
-  const planLabel = `↓ ${dayLabel}`; // 업무 리스트에서 '보고 있는 날짜'로 담기 버튼 라벨
   const ddays = (t: Task) =>
     t.dueDate ? Math.ceil((new Date(t.dueDate).getTime() - Date.now()) / 86400000) : Infinity;
   const todayStart0 = new Date();
@@ -399,6 +406,19 @@ function ActivityInner() {
   // ───── 스케줄(오늘): 계획 + 실제 + 근태 ─────
   const _td = new Date();
   const dateKeyISO = `${_td.getFullYear()}-${String(_td.getMonth() + 1).padStart(2, "0")}-${String(_td.getDate()).padStart(2, "0")}`;
+  // 보고 있는 날짜(선택 날짜) 키 + 그날 데일리 평가(지난날만)
+  const selDateKeyISO = `${selDate.getFullYear()}-${String(selDate.getMonth() + 1).padStart(2, "0")}-${String(selDate.getDate()).padStart(2, "0")}`;
+  const pastDaily: { comment?: string; review?: string } | null =
+    dayOffset < 0 && me?.id
+      ? (() => {
+          try {
+            const raw = localStorage.getItem(dailyKey(me.id, selDateKeyISO));
+            return raw ? (JSON.parse(raw) as { comment?: string; review?: string }) : null;
+          } catch {
+            return null;
+          }
+        })()
+      : null;
   const work = { start: targetUser?.workStart, end: targetUser?.workEnd };
   const todayLeave = userLeaves.find((l) => {
     if (l.status !== "approved") return false;
@@ -514,6 +534,13 @@ function ActivityInner() {
               : "오늘 할일 · 스케줄 · 업무 통계 (읽기 전용)"}
           </div>
         </div>
+        {isSelf && (
+          <div className="topbar-right">
+            <button className="btn primary" onClick={() => setEndDayOpen(true)} title="오늘 업무 종료 · 리포트 작성">
+              🔚 업무 종료
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="content">
@@ -765,6 +792,16 @@ function ActivityInner() {
               <div className="hint" style={{ padding: "0 18px 16px" }}>
                 업무 리스트에서 <b>드래그</b>해 담기 · 손잡이(⠿)로 순서 변경 · <b>체크</b>하면 “현재 업무중”으로 올라갑니다
               </div>
+              {/* 지난날 조회 시에만: 그날 업무 종료 때 생성된 데일리 평가 */}
+              {dayOffset < 0 && pastDaily?.review && (
+                <div style={{ margin: "0 18px 16px", padding: 12, background: "#f5f3ff", borderRadius: 10, border: "1px solid #e5e0ff" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#6d28d9", marginBottom: 4 }}>🤖 {dayLabel} 데일리 평가</div>
+                  {pastDaily.comment && (
+                    <div style={{ fontSize: 12.5, color: "var(--text-2)", marginBottom: 6 }}>📝 {pastDaily.comment}</div>
+                  )}
+                  <div style={{ fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{pastDaily.review}</div>
+                </div>
+              )}
             </div>
 
             {/* 나의 업무 + 요청받은 업무 (드래그해서 오늘의 업무로 ↔ 되돌리기) */}
@@ -828,9 +865,6 @@ function ActivityInner() {
                         <span style={{ flex: 1, cursor: "pointer" }} onClick={() => setDetailId(t.id)}>{t.title}</span>
                         <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
                         <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
-                        {isSelf && (
-                          <button className="btn sm" onClick={() => planForDay(t.id, selDate.toISOString())} disabled={busy === t.id}>{planLabel}</button>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -878,9 +912,6 @@ function ActivityInner() {
                           ) : (
                             <>
                               <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
-                              {isSelf && (
-                                <button className="btn sm" onClick={() => planForDay(t.id, selDate.toISOString())} disabled={busy === t.id}>{planLabel}</button>
-                              )}
                             </>
                           )}
                           {t.reworkCount && t.reworkReason ? (
@@ -1181,6 +1212,16 @@ function ActivityInner() {
           readOnly={!isSelf}
           onClose={() => setDocTask(null)}
           onSaved={() => void load()}
+        />
+      )}
+
+      {endDayOpen && me && (
+        <EndDayModal
+          userId={me.id}
+          dateKey={dateKeyISO}
+          tasks={[...currentTasks, ...todayList]}
+          onClose={() => setEndDayOpen(false)}
+          onDone={() => { setEndDayOpen(false); void load(); }}
         />
       )}
     </>

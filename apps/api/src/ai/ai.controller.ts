@@ -41,7 +41,11 @@ export class AiController {
 
   // 데일리 평가: 업무설명↔노트/보고↔진행률 일치도 한줄평
   @Post('daily-review')
-  dailyReview(@Query('userId') userId: string, @Query('date') date: string) {
-    return this.ai.dailyReview(userId, date);
+  dailyReview(
+    @Query('userId') userId: string,
+    @Query('date') date: string,
+    @Body() body: { comment?: string; taskIds?: string[] },
+  ) {
+    return this.ai.dailyReview(userId, date, body?.comment, body?.taskIds);
   }
 }

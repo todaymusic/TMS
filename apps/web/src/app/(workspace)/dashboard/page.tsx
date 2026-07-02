@@ -10,6 +10,7 @@ import {
   type User,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import TaskDetailModal from "@/components/TaskDetailModal";
 
 // 업무 대분류 (category) — 대시보드는 롱/쇼츠만(프로젝트는 프로젝트 탭에서)
 const CATEGORIES = [
@@ -97,6 +98,7 @@ export default function DashboardPage() {
   const [showDetail, setShowDetail] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   // 업무 풀 탭: 미배정 / 배정 · 배정 탭 담당자·월 필터
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [tab, setTab] = useState<"unassigned" | "assigned">("unassigned");
   const [who, setWho] = useState("all");
   const [month, setMonth] = useState("all");
@@ -382,7 +384,11 @@ export default function DashboardPage() {
                     >
                       <span className="pill" style={{ background: PRI_TAG[t.priority].bg, color: PRI_TAG[t.priority].fg, fontSize: 10 }}>{PRI_TAG[t.priority].label}</span>
                       {t.subCategory && <span className="pill gray" style={{ fontSize: 10 }}>{t.subCategory}</span>}
-                      <span style={{ flex: 1, minWidth: 120, fontSize: 13.5, fontWeight: 600 }}>
+                      <span
+                        onClick={() => setDetailId(t.id)}
+                        title="업무 상세 보기"
+                        style={{ flex: 1, minWidth: 120, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}
+                      >
                         {t.project && <span style={{ color: "var(--text-3)", fontSize: 11.5, fontWeight: 400 }}>({t.project.name}) </span>}
                         {t.title}
                       </span>
@@ -464,7 +470,7 @@ export default function DashboardPage() {
                       {assignedRows.map((t) => {
                         const dd = deadlineDiff(t);
                         return (
-                          <tr key={t.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                          <tr key={t.id} onClick={() => setDetailId(t.id)} title="업무 상세 보기" style={{ borderBottom: "1px solid var(--border)", cursor: "pointer" }}>
                             <td style={{ padding: "8px 10px" }}>
                               {t.project && <span style={{ color: "var(--text-3)", fontSize: 11 }}>({t.project.name}) </span>}
                               {t.title}
@@ -613,6 +619,15 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {detailId && (
+        <TaskDetailModal
+          taskId={detailId}
+          onClose={() => setDetailId(null)}
+          onSaved={() => { setDetailId(null); void load(); }}
+          onDeleted={() => { setDetailId(null); void load(); }}
+        />
+      )}
     </>
   );
 }

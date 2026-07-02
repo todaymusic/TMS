@@ -172,7 +172,7 @@ export class AiService {
   }
 
   /** 데일리 평가 — 업무설명 ↔ 노트/보고 ↔ 진행률% 일치도 한줄평 */
-  async dailyReview(userId: string, date: string) {
+  async dailyReview(userId: string, date: string, comment?: string, taskIds?: string[]) {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
     const next = new Date(d);
@@ -189,17 +189,23 @@ export class AiService {
       status: true,
     } as const;
 
-    let tasks = await this.prisma.task.findMany({
-      where: {
-        assigneeId: userId,
-        OR: [
-          { plannedDate: { gte: d, lt: next } },
-          { startedAt: { gte: d, lt: next } },
-          { dueDate: { gte: d, lt: next } },
-        ],
-      },
-      select,
-    });
+    // 리포트에 올린 태스크가 있으면 그 업무들(진행률·개요 포함)을 그대로 평가, 없으면 그날 날짜 기준
+    let tasks = taskIds?.length
+      ? await this.prisma.task.findMany({
+          where: { id: { in: taskIds }, assigneeId: userId },
+          select,
+        })
+      : await this.prisma.task.findMany({
+          where: {
+            assigneeId: userId,
+            OR: [
+              { plannedDate: { gte: d, lt: next } },
+              { startedAt: { gte: d, lt: next } },
+              { dueDate: { gte: d, lt: next } },
+            ],
+          },
+          select,
+        });
     // 폴백: 오늘 날짜 업무가 없으면 진행중/완료 등 활동 업무로 평가
     if (tasks.length === 0) {
       tasks = await this.prisma.task.findMany({
@@ -231,7 +237,12 @@ export class AiService {
       system:
         '당신은 팀 리더의 시각으로 하루 업무를 평가하는 어시스턴트입니다. 각 업무의 (1)업무설명 (2)진행메모/보고 내용 (3)본인이 설정한 진행률%이 서로 얼마나 일치·적절한지 보고, 과대평가/근거부족/잘 맞음 등을 짚어 한국어로 2~3문장의 데일리 한줄평을 작성하세요. 칭찬과 개선점을 균형있게, 구체적으로. 데이터에 없는 사실은 지어내지 마세요.',
       messages: [
-        { role: 'user', content: `오늘 업무 내역입니다. 평가해 주세요.\n\n${body}` },
+        {
+          role: 'user',
+          content:
+            `오늘 업무 내역입니다. 평가해 주세요.\n\n${body}` +
+            (comment?.trim() ? `\n\n[본인 데일리 한줄평] ${comment.trim()}\n위 한줄평도 참고해 평가해 주세요.` : ''),
+        },
       ],
     });
     return { review: this.textOf(msg) };
