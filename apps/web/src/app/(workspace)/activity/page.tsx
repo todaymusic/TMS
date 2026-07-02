@@ -427,7 +427,7 @@ function ActivityInner() {
   // 보고 있는 날짜(선택 날짜) 키 + 그날 데일리 평가(지난날만)
   const selDateKeyISO = `${selDate.getFullYear()}-${String(selDate.getMonth() + 1).padStart(2, "0")}-${String(selDate.getDate()).padStart(2, "0")}`;
   const pastDaily: { comment?: string; review?: string } | null =
-    dayOffset < 0 && me?.id
+    dayOffset <= 0 && me?.id
       ? (() => {
           try {
             const raw = localStorage.getItem(dailyKey(me.id, selDateKeyISO));
@@ -737,27 +737,28 @@ function ActivityInner() {
                           ⠿
                         </span>
                       )}
-                      <input
-                        type="checkbox"
-                        checked={false}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (isSelf && dayOffset === 0 && busy !== it.id) {
-                            if (it.status === "paused") void resume(it.id);
-                            else void start(it.id);
-                          }
-                        }}
-                        onChange={() => {}}
-                        disabled={!isSelf || dayOffset !== 0 || busy === it.id}
-                        title={
-                          dayOffset !== 0
-                            ? "오늘 화면에서만 시작할 수 있어요"
-                            : it.status === "paused"
+                      {/* 체크(시작)는 오늘 뷰에서만 — 과거/미래는 기록 표시라 체크박스 숨김(오클릭 방지) */}
+                      {dayOffset === 0 && (
+                        <input
+                          type="checkbox"
+                          checked={false}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isSelf && busy !== it.id) {
+                              if (it.status === "paused") void resume(it.id);
+                              else void start(it.id);
+                            }
+                          }}
+                          onChange={() => {}}
+                          disabled={!isSelf || busy === it.id}
+                          title={
+                            it.status === "paused"
                               ? "체크하면 재개 → 현재 업무중"
                               : "체크하면 시작 → 현재 업무중"
-                        }
-                        style={{ width: 16, height: 16, accentColor: "var(--primary)", cursor: isSelf ? "pointer" : "default" }}
-                      />
+                          }
+                          style={{ width: 16, height: 16, accentColor: "var(--primary)", cursor: isSelf ? "pointer" : "default" }}
+                        />
+                      )}
                       <span
                         className="pill"
                         style={{ background: PRI[it.priority].bg, color: PRI[it.priority].fg, fontSize: 11 }}
@@ -809,11 +810,13 @@ function ActivityInner() {
                   );
                 })}
               </div>
-              <div className="hint" style={{ padding: "0 18px 16px" }}>
-                업무 리스트에서 <b>드래그</b>해 담기 · 손잡이(⠿)로 순서 변경 · <b>체크</b>하면 “현재 업무중”으로 올라갑니다
-              </div>
-              {/* 지난날 조회 시에만: 그날 업무 종료 때 생성된 데일리 평가 */}
-              {dayOffset < 0 && pastDaily?.review && (
+              {dayOffset === 0 && (
+                <div className="hint" style={{ padding: "0 18px 16px" }}>
+                  업무 리스트에서 <b>드래그</b>해 담기 · 손잡이(⠿)로 순서 변경 · <b>체크</b>하면 “현재 업무중”으로 올라갑니다
+                </div>
+              )}
+              {/* 그날 업무 종료 때 생성된 데일리 평가 (오늘 포함) */}
+              {pastDaily?.review && (
                 <div style={{ margin: "0 18px 16px", padding: 12, background: "#f5f3ff", borderRadius: 10, border: "1px solid #e5e0ff" }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#6d28d9", marginBottom: 4 }}>🤖 {dayLabel} 데일리 평가</div>
                   {pastDaily.comment && (
