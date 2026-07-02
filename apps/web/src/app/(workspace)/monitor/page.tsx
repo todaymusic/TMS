@@ -50,13 +50,16 @@ export default function MonitorPage() {
   const nowMs = Date.now();
   const isOnline = (u: User) =>
     !!u.lastSeenAt && nowMs - new Date(u.lastSeenAt).getTime() < OFFLINE_MS;
-  // 현황: 오프라인(미접속) > 업무 종료(퇴근) > 진행중 > 대기
+  // 현황 우선순위: 오프라인(미접속) > 방해금지 > 자리비움(수동 상태) > 업무 종료(퇴근) > 진행중 > 대기
   const presenceOf = (u: User): { label: string; dot: string; sub?: string } => {
     if (!isOnline(u)) return { label: "오프라인", dot: "#9ca3af" };
+    const msg = u.statusMessage?.trim() || undefined;
+    if (u.status === "dnd") return { label: "방해금지", dot: "#ef4444", sub: msg };
+    if (u.status === "away") return { label: "자리비움", dot: "#eab308", sub: msg };
     if (u.clockedOut) return { label: "업무 종료", dot: "#6366f1" };
     const task = doingByUser.get(u.id);
     if (task) return { label: "진행중", dot: "#22c55e", sub: task.title };
-    return { label: "대기 중", dot: "#22c55e" };
+    return { label: "대기 중", dot: "#22c55e", sub: msg };
   };
   const onlineCount = users.filter(isOnline).length;
 

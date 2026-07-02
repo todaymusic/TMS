@@ -35,9 +35,12 @@ export class UsersService {
 
   async update(id: string, dto: UpdateUserDto) {
     await this.findOne(id);
+    // 수동 상태를 활동(업무중/자리비움/방해금지)으로 바꾸면 '퇴근(clockedOut)' 상태 해제
+    const clearClockOut =
+      dto.status !== undefined && dto.status !== 'off';
     return this.prisma.user.update({
       where: { id },
-      data: dto,
+      data: { ...dto, ...(clearClockOut ? { clockedOut: false } : {}) },
       omit: omitPassword,
     });
   }
