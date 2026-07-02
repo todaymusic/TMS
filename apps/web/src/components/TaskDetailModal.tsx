@@ -383,10 +383,16 @@ export default function TaskDetailModal({
             </div>
 
             <div className="assign-field">
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <label style={{ margin: 0 }}>🤖 AI 업무설명 doc</label>
-                <button type="button" className="btn sm" style={{ marginLeft: "auto" }} onClick={() => setBigEdit(true)}>
-                  ⛶ 새 창에서 보기/편집
+                <button
+                  type="button"
+                  className="btn sm"
+                  style={{ marginLeft: "auto" }}
+                  onClick={() => setBigEdit(true)}
+                  disabled={ro && !doc.trim()}
+                >
+                  📄 {doc.trim() ? "업무설명 열기" : ro ? "없음" : "업무설명 작성"}
                 </button>
                 {!ro && (
                   <button type="button" className="btn sm" onClick={regenerateDoc} disabled={aiBusy}>
@@ -394,14 +400,6 @@ export default function TaskDetailModal({
                   </button>
                 )}
               </div>
-              <textarea
-                className="inp"
-                value={doc}
-                onChange={(e) => setDoc(e.target.value)}
-                placeholder="부여 시 생성된 업무설명 doc"
-                style={{ minHeight: 140 }}
-                disabled={ro}
-              />
             </div>
 
             {err && <div style={{ color: "#dc2626", fontSize: 13, marginBottom: 8 }}>{err}</div>}
