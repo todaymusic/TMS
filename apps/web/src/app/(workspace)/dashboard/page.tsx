@@ -406,10 +406,14 @@ function DashboardInner() {
                     {assignees.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                   <span style={{ fontSize: 12, color: "var(--text-3)" }}>월(완료 기준)</span>
-                  <select className="inp" value={month} onChange={(e) => setMonth(e.target.value)} style={{ width: 110, fontSize: 12 }}>
-                    <option value="all">전체</option>
-                    {months.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </select>
+                  <div className="chips" style={{ gap: 4 }}>
+                    <span className={`chip${month === "all" ? " on" : ""}`} onClick={() => setMonth("all")}>전체</span>
+                    {months.map((m) => (
+                      <span key={m} className={`chip${month === m ? " on" : ""}`} onClick={() => setMonth(m)} title={m}>
+                        {`${Number(m.slice(5))}월`}
+                      </span>
+                    ))}
+                  </div>
                   <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-2)" }}>총 {assignedRows.length}건</span>
                 </div>
                 {summary && (
