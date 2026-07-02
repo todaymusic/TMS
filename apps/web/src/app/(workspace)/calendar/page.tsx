@@ -14,7 +14,6 @@ import { MeetingCreateModal, MeetingDetailModal } from "./MeetingModals";
 
 const DOWS = ["월", "화", "수", "목", "금", "토", "일"];
 
-type EvKind = "done" | "prog" | "late";
 
 type LeaveCal = Leave & { user: { id: string; name: string; avatarColor: string } };
 const LEAVE_LABEL: Record<LeaveType, string> = {
@@ -32,12 +31,6 @@ function leaveStyle(s: Leave["status"]): React.CSSProperties {
 }
 
 const GANTT_COLORS = ["#4f46e5", "#0f766e", "#db2777", "#ea580c", "#0891b2"];
-
-function evKind(t: Task, today: Date): EvKind {
-  if (t.status === "done" || t.status === "completed_pending") return "done";
-  if (t.dueDate && new Date(t.dueDate) < today) return "late";
-  return "prog";
-}
 
 export default function CalendarPage() {
   const { user: me } = useAuth();
@@ -115,18 +108,19 @@ export default function CalendarPage() {
     const offset = (firstDay + 6) % 7; // 월요일 시작
     const days = new Date(y, m + 1, 0).getDate();
 
-    // 업무: 마감일에 표시 (검색어로 필터)
+    // 업무: 완료된 업무를 '완료일(endedAt)'에 표시 (미완료·마감임박은 표시 안 함, 검색어로 필터)
     const term = q.trim().toLowerCase();
     const taskByDay = new Map<number, Task[]>();
     for (const t of tasks) {
-      if (!t.dueDate) continue;
+      const isDone = t.status === "done" || t.status === "completed_pending";
+      if (!isDone || !t.endedAt) continue;
       if (
         term &&
         !t.title.toLowerCase().includes(term) &&
         !(t.assignee?.name.toLowerCase().includes(term) ?? false)
       )
         continue;
-      const d = new Date(t.dueDate);
+      const d = new Date(t.endedAt);
       if (d.getFullYear() === y && d.getMonth() === m) {
         const day = d.getDate();
         taskByDay.set(day, [...(taskByDay.get(day) ?? []), t]);
@@ -289,8 +283,11 @@ export default function CalendarPage() {
                 <div className="cal-num">{c.day}</div>
                 {tab === "task" &&
                   c.tasks.map((t) => {
-                    const k = evKind(t, today);
                     const color = t.assignee?.avatarColor ?? "#9ca3af";
+                    // 마감일보다 늦게 완료 → 빨간 테두리
+                    const late =
+                      !!t.dueDate && !!t.endedAt &&
+                      new Date(t.endedAt).setHours(0, 0, 0, 0) > new Date(t.dueDate).setHours(0, 0, 0, 0);
                     return (
                       <div
                         key={t.id}
@@ -298,10 +295,9 @@ export default function CalendarPage() {
                         style={{
                           background: color,
                           color: "#fff",
-                          opacity: k === "done" ? 0.68 : 1,
-                          ...(k === "late" ? { boxShadow: "inset 0 0 0 2px #b91c1c" } : {}),
+                          ...(late ? { boxShadow: "inset 0 0 0 2px #b91c1c" } : {}),
                         }}
-                        title={`${t.assignee?.name ?? "미배정"} · ${t.title}${k === "late" ? " · 마감초과" : k === "done" ? " · 완료" : ""}`}
+                        title={`${t.assignee?.name ?? "미배정"} · ${t.title} · 완료${late ? " (마감 초과)" : ""}`}
                       >
                         {t.title}
                       </div>
