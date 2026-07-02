@@ -288,10 +288,17 @@ export class TasksService {
     // 스스로 만든 업무는 검수자가 없으므로 바로 done.
     const needsReview = !!task.assignerId && task.assignerId !== task.assigneeId;
 
-    await this.prisma.workLog.updateMany({
+    const closed = await this.prisma.workLog.updateMany({
       where: { taskId: id, endedAt: null },
       data: { endedAt: now, note: dto.note },
     });
+    // 시작(진행중) 없이 바로 완료한 경우: 닫을 열린 세션이 없어 완료 메모가 유실됨.
+    // → 완료 메모가 있으면 즉시 완료 세션(startedAt=endedAt)을 만들어 메모를 보존한다.
+    if (closed.count === 0 && dto.note?.trim() && task.assigneeId) {
+      await this.prisma.workLog.create({
+        data: { userId: task.assigneeId, taskId: id, startedAt: now, endedAt: now, note: dto.note },
+      });
+    }
 
     const updated = await this.prisma.task.update({
       where: { id },
