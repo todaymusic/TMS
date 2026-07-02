@@ -169,7 +169,8 @@ export default function CalendarPage() {
 
   // 간트: 전체 프로젝트 기간 범위에 맞춰 막대 배치
   const gantt = useMemo(() => {
-    const withDates = projects.filter((p) => p.startDate && p.endDate);
+    // 아카이브된 프로젝트는 타임라인에서 제외
+    const withDates = projects.filter((p) => p.startDate && p.endDate && p.status !== "archived");
     if (withDates.length === 0) return { rows: [], range: null as null | [number, number] };
     const starts = withDates.map((p) => new Date(p.startDate!).getTime());
     const ends = withDates.map((p) => new Date(p.endDate!).getTime());
