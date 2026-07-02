@@ -78,8 +78,11 @@ export default function CalendarPage() {
       setSyncing(false);
     }
   }
-  // 표시 월 (기준: 2026-06)
-  const [ym, setYm] = useState<{ y: number; m: number }>({ y: 2026, m: 5 }); // m: 0-based
+  // 표시 월 — 현재 월을 기본으로 (m: 0-based)
+  const [ym, setYm] = useState<{ y: number; m: number }>(() => {
+    const d = new Date();
+    return { y: d.getFullYear(), m: d.getMonth() };
+  });
 
   useEffect(() => {
     (async () => {
