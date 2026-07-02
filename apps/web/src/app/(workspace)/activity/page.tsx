@@ -104,8 +104,14 @@ function ActivityInner() {
   const [myPrio, setMyPrio] = useState<Priority>("medium");
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
+  // 업무 통계: 월 이동 + 완료/진행중/대기 선택
+  const [statMonth, setStatMonth] = useState(() => new Date());
+  const [statSel, setStatSel] = useState<"done" | "doing" | "todo">("done");
   // 업무 리스트 → 오늘의 업무로 끌어오는 드래그
   const [listDragId, setListDragId] = useState<string | null>(null);
+  // 현재 업무중: 메인 업무 지정(개인) + 메인/서브 드래그
+  const [mainTaskId, setMainTaskId] = useState<string | null>(null);
+  const [curDragId, setCurDragId] = useState<string | null>(null);
   // 업무설명 doc 새 창
   const [docTask, setDocTask] = useState<{ id: string; title: string } | null>(null);
   // 포스트잇 자유 메모(개인 · localStorage 저장)
@@ -159,6 +165,26 @@ function ActivityInner() {
     setScratch(v);
     try {
       if (me?.id) localStorage.setItem(`tms_scratch_${me.id}`, v);
+    } catch {
+      /* noop */
+    }
+  }
+
+  // 메인 업무 지정 불러오기(개인)
+  useEffect(() => {
+    if (!me?.id) return;
+    try {
+      setMainTaskId(localStorage.getItem(`tms_main_${me.id}`) || null);
+    } catch {
+      /* noop */
+    }
+  }, [me?.id]);
+  function setMain(id: string | null) {
+    setMainTaskId(id);
+    try {
+      if (!me?.id) return;
+      if (id) localStorage.setItem(`tms_main_${me.id}`, id);
+      else localStorage.removeItem(`tms_main_${me.id}`);
     } catch {
       /* noop */
     }
@@ -244,13 +270,11 @@ function ActivityInner() {
     }
   }
 
-  // '오늘 하기' 토글 (plannedDate=오늘 / 해제)
-  async function planToday(id: string, on: boolean) {
+  // 특정 날짜의 '오늘의 업무'로 담기/해제 (plannedDate = 보고 있는 날짜, null이면 해제)
+  async function planForDay(id: string, dateISO: string | null) {
     setBusy(id);
     try {
-      await api.patch(`/tasks/${id}`, {
-        plannedDate: on ? new Date().toISOString() : "",
-      });
+      await api.patch(`/tasks/${id}`, { plannedDate: dateISO ?? "" });
       await load();
     } finally {
       setBusy(null);
@@ -282,17 +306,21 @@ function ActivityInner() {
         ? "doing"
         : "todo";
 
-  const cnt = {
-    done: tasks.filter((t) => stateOf(t) === "done").length,
-    doing: tasks.filter((t) => stateOf(t) === "doing").length,
-    todo: tasks.filter((t) => stateOf(t) === "todo").length,
-  };
+  // 업무 통계(월별) — 완료는 그 달 종료분, 진행중/대기는 현재 상태
+  const statMonthKey = `${statMonth.getFullYear()}-${String(statMonth.getMonth() + 1).padStart(2, "0")}`;
+  const endMonthKey = (t: Task) =>
+    t.endedAt ? `${new Date(t.endedAt).getFullYear()}-${String(new Date(t.endedAt).getMonth() + 1).padStart(2, "0")}` : "";
+  const doneInMonth = tasks.filter((t) => stateOf(t) === "done" && endMonthKey(t) === statMonthKey);
+  const doingNow = tasks.filter((t) => t.status === "doing");
+  const todoNow = tasks.filter((t) => t.status === "todo");
+  const statList = statSel === "done" ? doneInMonth : statSel === "doing" ? doingNow : todoNow;
 
   // 선택 날짜
   const selDate = new Date();
   selDate.setDate(selDate.getDate() + dayOffset);
   const selKey = ymd(selDate);
   const dayLabel = dayOffset === 0 ? "오늘" : dayOffset === -1 ? "어제" : dayOffset === 1 ? "내일" : `${selDate.getMonth() + 1}/${selDate.getDate()}`;
+  const planLabel = `↓ ${dayLabel}`; // 업무 리스트에서 '보고 있는 날짜'로 담기 버튼 라벨
   const ddays = (t: Task) =>
     t.dueDate ? Math.ceil((new Date(t.dueDate).getTime() - Date.now()) / 86400000) : Infinity;
   const todayStart0 = new Date();
@@ -326,8 +354,10 @@ function ActivityInner() {
       return ddays(a) - ddays(b);
     });
 
-  // 현재 업무중 = 지금 시작해서 진행 중(doing)인 업무
+  // 현재 업무중 = 지금 시작해서 진행 중(doing)인 업무 · 메인 1 + 서브 나머지
   const currentTasks = tasks.filter((t) => t.status === "doing");
+  const mainTask = currentTasks.find((t) => t.id === mainTaskId) ?? currentTasks[0] ?? null;
+  const subTasks = currentTasks.filter((t) => t.id !== mainTask?.id);
   // 오늘의 업무 = 오늘 계획됐지만 아직 진행중이 아닌 것(대기·중단)
   const todayList = dayTasks.filter((t) => t.status !== "doing");
   const todayIds = new Set(dayTasks.map((t) => t.id));
@@ -368,7 +398,6 @@ function ActivityInner() {
   });
   // 내가 부여한 업무: 나에게 / 남에게  +  남이 나에게 부여한 업무
   const assignedSelf = assigned.filter((t) => t.assignee?.id === targetId);
-  const assignedOut = assigned.filter((t) => t.assignee?.id !== targetId);
   const fromOthers = tasks.filter((t) => t.assigner && t.assigner.id !== targetId);
   // 업무 리스트(백로그) = 아직 오늘의 업무에 없고 미완료인 것
   const myBacklog = assignedSelf.filter((t) => stateOf(t) !== "done" && !todayIds.has(t.id));
@@ -380,8 +409,65 @@ function ActivityInner() {
     const id = listDragId;
     setListDragId(null);
     if (!id) return;
-    await planToday(id, true);
+    await planForDay(id, selDate.toISOString());
   }
+  // 현재 업무중: 메인/서브 존으로 드롭
+  function dropCur(zone: "main" | "sub") {
+    const id = curDragId;
+    setCurDragId(null);
+    if (!id) return;
+    if (zone === "main") setMain(id); // 메인으로 승격(기존 메인은 서브로 밀림)
+    else if (mainTask && id === mainTask.id) setMain(subTasks[0]?.id ?? null); // 메인을 서브로 내림
+  }
+  // 현재 업무중 카드(메인=크게 / 서브=병렬 카드). 세로 카드형.
+  const curCard = (t: Task, isMain: boolean) => (
+    <div
+      key={t.id}
+      draggable={isSelf}
+      onDragStart={(e) => { if (isSelf) { setCurDragId(t.id); e.dataTransfer.effectAllowed = "move"; } }}
+      onDragEnd={() => setCurDragId(null)}
+      style={{
+        display: "flex", flexDirection: "column", gap: isMain ? 10 : 7,
+        padding: isMain ? "20px 22px" : "12px 14px",
+        border: "1px solid var(--primary)", borderRadius: 12,
+        background: "var(--primary-soft, #eef0fe)",
+        cursor: isSelf ? "grab" : "default",
+        opacity: curDragId === t.id ? 0.4 : 1,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>{PRI[t.priority].label}</span>
+        {t.project && <span style={{ fontSize: 11, color: "var(--text-3)" }}>{t.project.name}</span>}
+        <div style={{ marginLeft: "auto", textAlign: "right" }}>
+          <b style={{ fontSize: isMain ? 15 : 12, color: progressColor(t.progress) }}>{t.progress}%</b>
+          {t.dueDate && (
+            <div style={{ fontSize: 10.5, marginTop: 1, color: ddays(t) <= 0 ? "#b91c1c" : ddays(t) <= 2 ? "#a16207" : "var(--text-3)" }}>
+              📅 {mdd(t.dueDate)} ({ddays(t) < 0 ? `D+${-ddays(t)}` : ddays(t) === 0 ? "D-Day" : `D-${ddays(t)}`})
+            </div>
+          )}
+        </div>
+      </div>
+      <div
+        onClick={() => setDetailId(t.id)}
+        style={{ fontWeight: 800, fontSize: isMain ? 23 : 14, lineHeight: 1.3, cursor: "pointer" }}
+      >
+        {t.title}
+      </div>
+      {(t.aiDescriptionDoc || isSelf) && (
+        <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+          {t.aiDescriptionDoc && (
+            <button className="btn sm" onClick={(e) => { e.stopPropagation(); setDocTask({ id: t.id, title: t.title }); }} title="업무설명 doc 보기/편집">⛶ 업무설명</button>
+          )}
+          {isSelf && (
+            <>
+              <button className="btn sm" onClick={(e) => { e.stopPropagation(); pause(t.id); }} disabled={busy === t.id}>⏸ 일시정지</button>
+              <button className="btn primary sm" onClick={(e) => { e.stopPropagation(); openEnd(t); }} disabled={busy === t.id}>✓ 완료</button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
   const stLabel = (t: Task) =>
     stateOf(t) === "done" ? "완료" : stateOf(t) === "doing" ? "진행중" : "대기";
 
@@ -443,11 +529,10 @@ function ActivityInner() {
           <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
             {/* ▶ 현재 업무중 + ⏳ 마감 임박 (하나의 카드) */}
             <div className="card" style={{ borderLeft: "4px solid var(--primary)" }}>
-              <div className="panel-head">
-                <div className="sec-title"><span className="em">▶</span> 현재 업무중</div>
+              <div style={{ display: "flex", padding: "12px 14px 0" }}>
                 <span className="count" style={{ marginLeft: "auto" }}>{currentTasks.length}</span>
               </div>
-              <div style={{ padding: "6px 14px 12px", display: "grid", gap: 8 }}>
+              <div style={{ padding: "8px 14px 12px", display: "grid", gap: 10 }}>
                 {currentTasks.length === 0 && (
                   <div style={{ color: "var(--text-3)", fontSize: 13 }}>
                     {isSelf
@@ -455,31 +540,39 @@ function ActivityInner() {
                       : "지금 진행 중인 업무가 없어요."}
                   </div>
                 )}
-                {currentTasks.map((t) => (
-                  <div
-                    key={t.id}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 8, fontSize: 14, flexWrap: "wrap",
-                      padding: "10px 12px", border: "1px solid var(--primary)", borderRadius: 10, background: "var(--primary-soft, #eef0fe)",
-                    }}
-                  >
-                    <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>{PRI[t.priority].label}</span>
-                    <span style={{ flex: 1, minWidth: 120, fontWeight: 700, cursor: "pointer" }} onClick={() => setDetailId(t.id)}>
-                      {t.project && <span style={{ color: "var(--text-3)", fontSize: 11.5, fontWeight: 400 }}>({t.project.name}) </span>}
-                      {t.title}
-                    </span>
-                    <b style={{ fontSize: 13, color: progressColor(t.progress) }}>{t.progress}%</b>
-                    {isSelf && (
-                      <>
-                        <button className="btn sm" onClick={() => pause(t.id)} disabled={busy === t.id}>⏸ 일시정지</button>
-                        <button className="btn primary sm" onClick={() => openEnd(t)} disabled={busy === t.id}>✓ 완료</button>
-                      </>
-                    )}
-                    {t.statusMemo && (
-                      <div style={{ flexBasis: "100%", fontSize: 12, color: "var(--text-2)" }}>📝 {t.statusMemo}</div>
-                    )}
-                  </div>
-                ))}
+                {currentTasks.length > 0 && (
+                  <>
+                    {/* 메인 — 크게 (드롭 존) */}
+                    <div
+                      onDragOver={(e) => { if (isSelf && curDragId) e.preventDefault(); }}
+                      onDrop={() => { if (isSelf) dropCur("main"); }}
+                      style={{ borderRadius: 12, outline: curDragId ? "2px dashed var(--primary)" : undefined, outlineOffset: 3 }}
+                    >
+                      {mainTask ? (
+                        curCard(mainTask, true)
+                      ) : (
+                        <div style={{ border: "2px dashed var(--border)", borderRadius: 12, padding: 18, fontSize: 12, color: "var(--text-3)", textAlign: "center" }}>여기로 드래그해 메인 업무 지정</div>
+                      )}
+                    </div>
+                    {/* 서브 — 병렬 카드 (드롭 존) */}
+                    <div
+                      onDragOver={(e) => { if (isSelf && curDragId) e.preventDefault(); }}
+                      onDrop={() => { if (isSelf) dropCur("sub"); }}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: subTasks.length ? "repeat(auto-fit, minmax(190px, 1fr))" : "1fr",
+                        gap: 8, borderRadius: 12,
+                        outline: curDragId ? "2px dashed var(--primary)" : undefined, outlineOffset: 3,
+                      }}
+                    >
+                      {subTasks.length === 0 ? (
+                        <div style={{ border: "2px dashed var(--border)", borderRadius: 12, padding: 12, fontSize: 12, color: "var(--text-3)", textAlign: "center" }}>서브 업무 없음 — 카드를 여기로 드래그</div>
+                      ) : (
+                        subTasks.map((t) => curCard(t, false))
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
               {soon.length > 0 && (
                 <div style={{ borderTop: "1px solid var(--border)", padding: "10px 14px 14px" }}>
@@ -585,14 +678,20 @@ function ActivityInner() {
                         checked={false}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (isSelf && busy !== it.id) {
+                          if (isSelf && dayOffset === 0 && busy !== it.id) {
                             if (it.status === "paused") void resume(it.id);
                             else void start(it.id);
                           }
                         }}
                         onChange={() => {}}
-                        disabled={!isSelf || busy === it.id}
-                        title={it.status === "paused" ? "체크하면 재개 → 현재 업무중" : "체크하면 시작 → 현재 업무중"}
+                        disabled={!isSelf || dayOffset !== 0 || busy === it.id}
+                        title={
+                          dayOffset !== 0
+                            ? "오늘 화면에서만 시작할 수 있어요"
+                            : it.status === "paused"
+                              ? "체크하면 재개 → 현재 업무중"
+                              : "체크하면 시작 → 현재 업무중"
+                        }
                         style={{ width: 16, height: 16, accentColor: "var(--primary)", cursor: isSelf ? "pointer" : "default" }}
                       />
                       <span
@@ -708,7 +807,7 @@ function ActivityInner() {
                         <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
                         <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
                         {isSelf && (
-                          <button className="btn sm" onClick={() => planToday(t.id, true)} disabled={busy === t.id}>↓ 오늘</button>
+                          <button className="btn sm" onClick={() => planForDay(t.id, selDate.toISOString())} disabled={busy === t.id}>{planLabel}</button>
                         )}
                       </div>
                     ))}
@@ -758,7 +857,7 @@ function ActivityInner() {
                             <>
                               <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
                               {isSelf && (
-                                <button className="btn sm" onClick={() => planToday(t.id, true)} disabled={busy === t.id}>↓ 오늘</button>
+                                <button className="btn sm" onClick={() => planForDay(t.id, selDate.toISOString())} disabled={busy === t.id}>{planLabel}</button>
                               )}
                             </>
                           )}
@@ -777,42 +876,55 @@ function ActivityInner() {
 
             {/* 📤 요청한 업무 · 📨 멘션 소통피드 — 나란히 */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, alignItems: "start" }}>
-              {/* 📤 요청한 업무 */}
+              {/* 📊 업무 통계 (월별 · 완료/진행중/대기 클릭 → 목록) */}
               <div className="card">
                 <div className="panel-head">
-                  <div className="sec-title"><span className="em">📤</span> 요청한 업무</div>
-                  <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-                    {isSelf && <a href="/requests" className="btn sm">📊 전체·분석</a>}
-                    <span className="count">{assignedOut.length}</span>
+                  <div className="sec-title"><span className="em">📊</span> 업무 통계</div>
+                  <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+                    <button className="btn sm" onClick={() => setStatMonth((m) => { const d = new Date(m); d.setMonth(d.getMonth() - 1); return d; })}>◀</button>
+                    <b style={{ fontSize: 13, minWidth: 64, textAlign: "center" }}>{statMonth.getFullYear()}.{statMonth.getMonth() + 1}</b>
+                    <button className="btn sm" onClick={() => setStatMonth((m) => { const d = new Date(m); d.setMonth(d.getMonth() + 1); return d; })}>▶</button>
                   </span>
                 </div>
-                <div style={{ padding: "6px 14px 14px", display: "grid", gap: 6 }}>
-                  {assignedOut.length === 0 && (
-                    <div style={{ color: "var(--text-3)", fontSize: 13 }}>대시보드 → 업무 부여로 추가</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "6px 14px 10px" }}>
+                  {([
+                    ["done", `${statMonth.getMonth() + 1}월 완료`, doneInMonth.length, "#16a34a"],
+                    ["doing", "진행중", doingNow.length, "#2563eb"],
+                    ["todo", "대기", todoNow.length, "#eab308"],
+                  ] as const).map(([k, label, n, color]) => (
+                    <button
+                      key={k}
+                      onClick={() => setStatSel(k)}
+                      style={{
+                        border: `1px solid ${statSel === k ? color : "var(--border)"}`,
+                        background: statSel === k ? `${color}14` : "transparent",
+                        borderRadius: 10, padding: "10px 6px", cursor: "pointer", textAlign: "center",
+                      }}
+                    >
+                      <div style={{ fontSize: 22, fontWeight: 800, color }}>{n}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--text-2)" }}>{label}</div>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ padding: "0 14px 14px", display: "grid", gap: 6 }}>
+                  {statList.length === 0 && (
+                    <div style={{ color: "var(--text-3)", fontSize: 13 }}>해당 업무가 없어요.</div>
                   )}
-                  {assignedOut.map((t) => (
-                    <div key={t.id} onClick={() => setDetailId(t.id)} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8, flexWrap: "wrap" }}>
+                  {statList.map((t) => (
+                    <div
+                      key={t.id}
+                      onClick={() => setDetailId(t.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "7px 8px", border: "1px solid var(--border)", borderRadius: 8 }}
+                    >
                       <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>{PRI[t.priority].label}</span>
-                      <span style={{ flex: 1, minWidth: 80 }}>
+                      <span style={{ flex: 1, minWidth: 60 }}>
                         {t.project && <span style={{ color: "var(--text-3)", fontSize: 11.5 }}>({t.project.name}) </span>}
                         {t.title}
                       </span>
-                      <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-2)" }}>
-                        <span className="avatar" style={{ background: t.assignee?.avatarColor ?? "#999", width: 20, height: 20, fontSize: 10 }}>{t.assignee?.name?.slice(0, 1) ?? "?"}</span>
-                        {t.assignee?.name ?? "미지정"}
-                      </span>
-                      {t.acceptedAt ? (
-                        <span className="pill" style={{ background: "#dcfce7", color: "#15803d", fontSize: 10 }}>수락 {mdd(t.acceptedAt)}</span>
-                      ) : (
-                        <span className="pill" style={{ background: "#fef9c3", color: "#a16207", fontSize: 10 }}>수락대기</span>
+                      {statSel === "done" && t.endedAt && (
+                        <span style={{ fontSize: 11, color: "var(--text-3)" }}>{mdd(t.endedAt)}</span>
                       )}
-                      <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
                       <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
-                      {t.grade ? (
-                        <span className="pill" style={{ background: "#ede9fe", color: "#6d28d9", fontSize: 10, fontWeight: 700 }}>🏅 {t.grade}</span>
-                      ) : stateOf(t) === "done" && isSelf ? (
-                        <button className="btn primary sm" onClick={(e) => { e.stopPropagation(); setReviewTask(t); }}>🔍 검수</button>
-                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -905,25 +1017,6 @@ function ActivityInner() {
               </div>
             )}
 
-            <div className="card">
-              <div className="panel-head">
-                <div className="sec-title"><span className="em">📊</span> 업무 통계</div>
-              </div>
-              <div className="stats-row">
-                <div className="stat">
-                  <div className="num done">{cnt.done}</div>
-                  <div className="lb">완료</div>
-                </div>
-                <div className="stat">
-                  <div className="num prog">{cnt.doing}</div>
-                  <div className="lb">진행중</div>
-                </div>
-                <div className="stat">
-                  <div className="num wait">{cnt.todo}</div>
-                  <div className="lb">대기</div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

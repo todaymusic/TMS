@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { api, progressColor, type ScheduleBlock, type Task } from "@/lib/api";
+import { api, type ScheduleBlock, type Task } from "@/lib/api";
 
 const toMin = (hhmm: string) => {
   const [h, m] = hhmm.split(":").map(Number);
@@ -9,6 +9,7 @@ const toMin = (hhmm: string) => {
 };
 const toHHMM = (min: number) =>
   `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+// 브라우저 로컬 기준 YYYY-MM-DD (백엔드 date 필터는 UTC라 로컬로 재판정해야 함)
 const localYmd = (dt: Date) =>
   `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 
@@ -17,6 +18,13 @@ const PRI_COLOR: Record<string, string> = {
   high: "#ea580c",
   medium: "#4f46e5",
   low: "#64748b",
+};
+
+type WorkLog = {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  task: { id: string; title: string } | null;
 };
 
 export default function ScheduleBoard({
@@ -38,6 +46,7 @@ export default function ScheduleBoard({
 }) {
   const chips = dragTasks ?? tasks;
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
+  const [logs, setLogs] = useState<WorkLog[]>([]);
   const [editing, setEditing] = useState<ScheduleBlock | null>(null);
   const [review, setReview] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
@@ -73,6 +82,29 @@ export default function ScheduleBoard({
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, dateKey]);
+
+  // 실제 근무 로그(WorkLog 세션) — 업무 시작/중단/재개 시 tasks가 바뀌면 다시 불러옴.
+  // 백엔드 date 필터가 UTC라, 로컬 하루가 걸치는 전날+당일(UTC 48h)을 받아 로컬 날짜로 재필터.
+  async function loadLogs() {
+    try {
+      const prev = new Date(`${dateKey}T00:00:00`);
+      prev.setDate(prev.getDate() - 1);
+      const prevKey = localYmd(prev);
+      const [a, b] = await Promise.all([
+        api.get<WorkLog[]>(`/worklogs?userId=${userId}&date=${dateKey}`),
+        api.get<WorkLog[]>(`/worklogs?userId=${userId}&date=${prevKey}`),
+      ]);
+      const map = new Map<string, WorkLog>();
+      [...a, ...b].forEach((w) => map.set(w.id, w));
+      setLogs([...map.values()]);
+    } catch {
+      /* noop */
+    }
+  }
+  useEffect(() => {
+    void loadLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, dateKey, tasks]);
 
   async function addBlock(taskId: string | undefined, label: string | undefined, s: number, e: number) {
     const created = await api.post<ScheduleBlock>("/schedule", {
@@ -120,17 +152,23 @@ export default function ScheduleBoard({
     }
   }
 
-  // 실제 타임라인 (오늘 시작~종료)
+  // 실제 타임라인 = 그날(로컬)의 WorkLog 세션(시작~중단/종료). 세션별로 블록 표시.
   const actual = useMemo(
     () =>
-      tasks
-        .filter((t) => t.startedAt && localYmd(new Date(t.startedAt)) === dateKey)
-        .map((t) => {
-          const s = new Date(t.startedAt!);
-          const e = t.endedAt ? new Date(t.endedAt) : new Date();
-          return { t, s: s.getHours() * 60 + s.getMinutes(), e: e.getHours() * 60 + e.getMinutes() };
+      logs
+        .filter((l) => localYmd(new Date(l.startedAt)) === dateKey)
+        .map((l) => {
+          const s = new Date(l.startedAt);
+          const e = l.endedAt ? new Date(l.endedAt) : new Date();
+          return {
+            id: l.id,
+            title: l.task?.title ?? "업무",
+            done: !!l.endedAt,
+            s: s.getHours() * 60 + s.getMinutes(),
+            e: e.getHours() * 60 + e.getMinutes(),
+          };
         }),
-    [tasks, dateKey],
+    [logs, dateKey],
   );
 
   // 시간 눈금(매시)
@@ -264,23 +302,22 @@ export default function ScheduleBoard({
           <div style={{ position: "relative", height: H, border: "1px solid var(--border)", borderRadius: 8 }}>
             <Grid />
             <NowLine />
-            {actual.map(({ t, s, e }) => {
-              const top = yOf(s);
-              const h = Math.max((Math.min(e, endMin) - s) * scale, 16);
+            {actual.map((a) => {
+              const top = yOf(a.s);
+              const h = Math.max((Math.min(a.e, endMin) - a.s) * scale, 16);
               return (
                 <div
-                  key={t.id}
-                  title={`${toHHMM(s)}~${t.endedAt ? toHHMM(e) : "진행중"}`}
+                  key={a.id}
+                  title={`${toHHMM(a.s)}~${a.done ? toHHMM(a.e) : "진행중"}`}
                   style={{
                     position: "absolute", top, left: 3, right: 3, height: h,
-                    background: t.endedAt ? "#dcfce7" : "#fef3c7",
-                    border: `1px solid ${t.endedAt ? "#22c55e" : "#f59e0b"}`,
+                    background: a.done ? "#dcfce7" : "#fef3c7",
+                    border: `1px solid ${a.done ? "#22c55e" : "#f59e0b"}`,
                     borderRadius: 6, padding: "2px 6px", fontSize: 11, overflow: "hidden",
-                    color: progressColor(t.progress),
                   }}
                 >
-                  <b style={{ color: "#111" }}>{t.title}</b>
-                  <div style={{ fontSize: 9, color: "#555" }}>{toHHMM(s)}~{t.endedAt ? toHHMM(e) : "진행중"}</div>
+                  <b style={{ color: "#111" }}>{a.title}</b>
+                  <div style={{ fontSize: 9, color: "#555" }}>{toHHMM(a.s)}~{a.done ? toHHMM(a.e) : "진행중"}</div>
                 </div>
               );
             })}
