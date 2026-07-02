@@ -367,11 +367,14 @@ function ActivityInner() {
       // 남이 요청한 업무는 수락 전엔 오늘의 업무에서 제외
       if (t.assigner && t.assigner.id !== targetId && !t.acceptedAt) return false;
       if (dayOffset === 0) {
-        // 오늘의 업무 = 내가 직접 담은 것(plannedDate, 미완료는 이월) + 진행중.
-        // 마감 임박 자동 편입은 하지 않음 — 새 업무는 '업무 리스트'에 남고 직접 드래그해 담는다.
+        // 오늘의 업무 = 내가 직접 담은 것(plannedDate, 미완료는 이월) + 마감 지난 미완료(자동 이월) + 진행중.
+        // 마감 임박(아직 안 지난 것) 자동 편입은 하지 않음 — 업무 리스트에 남고 직접 드래그해 담는다.
         const plannedCarry =
           !!t.plannedDate && dateOnly(t.plannedDate) <= todayStart0.getTime() && stateOf(t) !== "done";
-        return plannedCarry || stateOf(t) === "doing";
+        // 마감일이 오늘 이전(지난)인데 아직 미완료 → 오늘로 이월(놓치지 않게)
+        const overdueCarry =
+          !!t.dueDate && dateOnly(t.dueDate) < todayStart0.getTime() && stateOf(t) !== "done";
+        return plannedCarry || overdueCarry || stateOf(t) === "doing";
       }
       // 어제/내일 보기: 그 날짜에 계획됐거나 마감인 것
       const planned = t.plannedDate && ymd(new Date(t.plannedDate)) === selKey;
