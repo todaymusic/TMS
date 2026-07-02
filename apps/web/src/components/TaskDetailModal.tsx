@@ -194,6 +194,26 @@ export default function TaskDetailModal({
           new Date(b.endedAt ?? b.startedAt).getTime() - new Date(a.endedAt ?? a.startedAt).getTime(),
       )[0]?.note ?? null;
 
+  // 마감 대비: 완료 업무는 마감 대비 지연/단축, 미완료는 초과/남은 일수
+  const dueInfo = (() => {
+    if (!task?.dueDate) return null;
+    const dayMs = 86400000;
+    const due = new Date(task.dueDate); due.setHours(0, 0, 0, 0);
+    const isDone = task.status === "done" || task.status === "completed_pending";
+    if (isDone && task.endedAt) {
+      const end = new Date(task.endedAt); end.setHours(0, 0, 0, 0);
+      const days = Math.round((end.getTime() - due.getTime()) / dayMs);
+      if (days > 0) return { text: `⚠️ 마감 ${days}일 초과 완료`, color: "#b91c1c", bg: "#fee2e2", bd: "#fecaca" };
+      if (days < 0) return { text: `✅ 마감 ${-days}일 전 완료`, color: "#15803d", bg: "#dcfce7", bd: "#bbf7d0" };
+      return { text: "✅ 정시 완료", color: "#15803d", bg: "#dcfce7", bd: "#bbf7d0" };
+    }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const days = Math.round((today.getTime() - due.getTime()) / dayMs);
+    if (days > 0) return { text: `⚠️ 마감 ${days}일 지남 (미완료)`, color: "#b91c1c", bg: "#fee2e2", bd: "#fecaca" };
+    if (days === 0) return { text: "⏳ 오늘 마감", color: "#a16207", bg: "#fef3c7", bd: "#fde68a" };
+    return { text: `🗓 마감까지 ${-days}일`, color: "#a16207", bg: "#fef9c3", bd: "#fde68a" };
+  })();
+
   return (
     <>
     {bigEdit && (
@@ -282,6 +302,17 @@ export default function TaskDetailModal({
                 <input className="inp" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={ro} />
               </div>
             </div>
+
+            {dueInfo && (
+              <div className="assign-field" style={{ marginTop: -4 }}>
+                <span
+                  className="pill"
+                  style={{ background: dueInfo.bg, color: dueInfo.color, border: `1px solid ${dueInfo.bd}`, fontSize: 12, fontWeight: 700, padding: "4px 10px" }}
+                >
+                  {dueInfo.text}
+                </span>
+              </div>
+            )}
 
             <div className="assign-field">
               <label>진행률 ({progress}%)</label>
