@@ -21,7 +21,7 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
 };
 const CAT_LABEL: Record<string, string> = { long: "롱", shorts: "쇼츠", project: "프로젝트" };
 
-type WorkLog = { id: string; startedAt: string; endedAt: string | null };
+type WorkLog = { id: string; startedAt: string; endedAt: string | null; note?: string | null };
 
 function fmtDur(ms: number): string {
   const min = Math.round(ms / 60000);
@@ -338,6 +338,11 @@ export default function TaskDetailModal({
                           </span>
                           <span style={{ color: "var(--text-3)" }}>{s.endedAt ? hm(s.endedAt) : ""}</span>
                         </div>
+                        {s.note && (
+                          <div style={{ display: "flex", gap: 8, color: "var(--text-2)", paddingLeft: 4, whiteSpace: "pre-wrap" }}>
+                            <span>📝</span><span style={{ flex: 1 }}>완료 메모: {s.note}</span>
+                          </div>
+                        )}
                         {next && gap > 0 && (
                           <div style={{ display: "flex", gap: 8, color: "#a16207", paddingLeft: 4 }}>
                             <span>⏳</span><span style={{ flex: 1 }}>{fmtDur(gap)} 만에 재개</span>
