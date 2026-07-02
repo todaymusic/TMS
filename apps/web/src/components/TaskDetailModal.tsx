@@ -185,6 +185,14 @@ export default function TaskDetailModal({
     0,
   );
   const hasTimeline = sessions.length > 0 || !!task?.acceptedAt || !!task?.startedAt;
+  // 완료 시 남긴 완료 메모(WorkLog.note) — 가장 최근 것
+  const completionNote =
+    [...logs]
+      .filter((l) => l.note && l.note.trim())
+      .sort(
+        (a, b) =>
+          new Date(b.endedAt ?? b.startedAt).getTime() - new Date(a.endedAt ?? a.startedAt).getTime(),
+      )[0]?.note ?? null;
 
   return (
     <>
@@ -299,6 +307,26 @@ export default function TaskDetailModal({
                 disabled={ro}
               />
             </div>
+
+            {completionNote && (
+              <div className="assign-field">
+                <label>✅ 완료 메모</label>
+                <div
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    fontSize: 13.5,
+                    lineHeight: 1.6,
+                    background: "#f0fdf4",
+                    border: "1px solid #bbf7d0",
+                    color: "#166534",
+                    borderRadius: 8,
+                    padding: "9px 12px",
+                  }}
+                >
+                  {completionNote}
+                </div>
+              </div>
+            )}
 
             <div className="assign-field" style={{ fontSize: 13, color: "var(--text-2)" }}>
               담당자: <b>{task.assignee?.name ?? "—"}</b>
