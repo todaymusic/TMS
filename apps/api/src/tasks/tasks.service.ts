@@ -284,6 +284,9 @@ export class TasksService {
   async end(id: string, dto: EndTaskDto) {
     const task = await this.findOne(id);
     const now = new Date();
+    // 남이 부여한 업무는 완료 즉시 done이 아니라 검수 대기(completed_pending)로 → 부여자가 검수/등급.
+    // 스스로 만든 업무는 검수자가 없으므로 바로 done.
+    const needsReview = !!task.assignerId && task.assignerId !== task.assigneeId;
 
     await this.prisma.workLog.updateMany({
       where: { taskId: id, endedAt: null },
@@ -293,7 +296,7 @@ export class TasksService {
     const updated = await this.prisma.task.update({
       where: { id },
       data: {
-        status: TaskStatus.done,
+        status: needsReview ? TaskStatus.completed_pending : TaskStatus.done,
         endedAt: now,
         progress: 100,
         ...(dto.reportLink !== undefined ? { reportLink: dto.reportLink } : {}),
@@ -301,13 +304,13 @@ export class TasksService {
       },
       include: taskInclude,
     });
-    // 요청자에게 완료 알림
-    if (task.assignerId && task.assignerId !== task.assigneeId) {
+    // 요청자에게 완료(검수 요청) 알림
+    if (needsReview && task.assignerId) {
       const content = `✅ ${updated.assignee?.name ?? '담당자'}님이 «${task.title}» 업무를 완료했습니다 — 검수해주세요`;
       await this.prisma.notification.create({
-        data: { userId: task.assignerId, type: 'task', content, link: '/activity' },
+        data: { userId: task.assignerId, type: 'task', content, link: '/dashboard' },
       });
-      await this.push.sendToUser(task.assignerId, { title: 'TMS 알림', body: content, url: '/activity' });
+      await this.push.sendToUser(task.assignerId, { title: 'TMS 알림', body: content, url: '/dashboard' });
     }
     return updated;
   }

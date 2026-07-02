@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   api,
   type ProjectListItem,
@@ -74,7 +74,7 @@ function ymKey(s?: string | null) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export default function DashboardPage() {
+function DashboardInner() {
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
@@ -103,12 +103,15 @@ export default function DashboardPage() {
   // 업무 풀 탭: 미배정 / 배정 · 배정 탭 담당자·월 필터
   const [detailId, setDetailId] = useState<string | null>(null);
   const [reviewTask, setReviewTask] = useState<Task | null>(null);
-  const [tab, setTab] = useState<"unassigned" | "assigned">("unassigned");
+  const router = useRouter();
+  const sp = useSearchParams();
+  // 탭을 URL에 저장 → 상세 열고 뒤로가기/새로고침해도 그 탭에 머묾 (replace라 히스토리 안 늘림)
+  const tab: "unassigned" | "assigned" = sp.get("tab") === "assigned" ? "assigned" : "unassigned";
+  const setTab = (k: "unassigned" | "assigned") => router.replace(`/dashboard?tab=${k}`, { scroll: false });
   const [who, setWho] = useState("all");
   const [month, setMonth] = useState("all");
 
   const [q, setQ] = useState("");
-  const router = useRouter();
   const { user: me } = useAuth();
 
   async function load() {
@@ -671,5 +674,13 @@ export default function DashboardPage() {
         />
       )}
     </>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={null}>
+      <DashboardInner />
+    </Suspense>
   );
 }
