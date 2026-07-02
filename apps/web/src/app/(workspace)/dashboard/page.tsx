@@ -489,6 +489,7 @@ function DashboardInner() {
                         const dd = deadlineDiff(t);
                         const isRejected = t.status === "rejected";
                         const isReview = t.status === "completed_pending";
+                        const isCompleted = t.status === "completed_pending" || t.status === "done";
                         const canManage = !!me && (!!me.isAdmin || t.assigner?.id === me.id);
                         const stBg = isRejected ? "#fee2e2" : isReview ? "#fef3c7" : "#eef0fe";
                         const stFg = isRejected ? "#b91c1c" : isReview ? "#a16207" : "#4338ca";
@@ -516,8 +517,8 @@ function DashboardInner() {
                                   <button className="btn sm" style={{ color: "#4338ca", borderColor: "#c7d2fe" }} onClick={() => requestAgain(t.id)} disabled={busyId === t.id} title="다시 수락 요청">↻ 재요청</button>
                                   <button className="btn sm" style={{ color: "#dc2626" }} onClick={() => delPool(t.id)} disabled={busyId === t.id} title="업무 취소(삭제)">🗑</button>
                                 </span>
-                              ) : isReview && canManage ? (
-                                <button className="btn primary sm" onClick={() => setReviewTask(t)} disabled={busyId === t.id} title="완료 검수 · 등급">🔍 검수</button>
+                              ) : isCompleted && canManage ? (
+                                <button className="btn primary sm" onClick={() => setReviewTask(t)} disabled={busyId === t.id} title="완료 검수 · AI 평가 · 등급">{t.grade ? "🔁 재검수" : "🔍 검수"}</button>
                               ) : (
                                 "—"
                               )}
