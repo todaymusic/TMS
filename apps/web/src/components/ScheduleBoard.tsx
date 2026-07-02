@@ -48,8 +48,6 @@ export default function ScheduleBoard({
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [logs, setLogs] = useState<WorkLog[]>([]);
   const [editing, setEditing] = useState<ScheduleBlock | null>(null);
-  const [review, setReview] = useState<string | null>(null);
-  const [aiBusy, setAiBusy] = useState(false);
   // 현재 시각(분) — 30초마다 갱신 → 줄이 내려감
   const [nowMin, setNowMin] = useState(() => {
     const d = new Date();
@@ -139,18 +137,6 @@ export default function ScheduleBoard({
     void addBlock(taskId, undefined, s, Math.min(s + 60, endMin));
   }
 
-  async function runReview() {
-    setAiBusy(true);
-    setReview(null);
-    try {
-      const r = await api.post<{ review: string }>(`/ai/daily-review?userId=${userId}&date=${dateKey}`, {});
-      setReview(r.review);
-    } catch (err) {
-      setReview(err instanceof Error ? err.message : "평가 실패");
-    } finally {
-      setAiBusy(false);
-    }
-  }
 
   // 실제 타임라인 = 그날(로컬)의 WorkLog 세션(시작~중단/종료). 세션별로 블록 표시.
   const actual = useMemo(
@@ -369,19 +355,6 @@ export default function ScheduleBoard({
         </div>
       )}
 
-      {/* AI 데일리 평가 */}
-      {!readOnly && (
-        <div style={{ marginTop: 14, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
-          <button className="btn" style={{ width: "100%" }} onClick={runReview} disabled={aiBusy}>
-            {aiBusy ? "평가 중…" : "🤖 데일리 평가 (업무설명↔노트/보고↔진행률 일치도)"}
-          </button>
-          {review && (
-            <div style={{ marginTop: 10, padding: "12px 14px", background: "#f5f3ff", borderRadius: 8, fontSize: 13.5, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-              {review}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
