@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, progressColor, type ProjectListItem, type Member } from "@/lib/api";
 import NewProjectModal from "./NewProjectModal";
 import ProjectReportModal from "./ProjectReportModal";
+
+type Tab = "active" | "upcoming" | "archived";
 
 function fmt(d: string | null): string {
   if (!d) return "";
@@ -41,10 +44,14 @@ function MemberStack({ members }: { members: Member[] }) {
   );
 }
 
-export default function ProjectsPage() {
+function ProjectsInner() {
+  const router = useRouter();
+  const sp = useSearchParams();
+  const tab: Tab = (sp.get("tab") as Tab) || "active";
+  // 탭을 URL에 저장 → 프로젝트 열고 뒤로가기 해도 그 탭에 머묾 (replace라 히스토리 안 늘림)
+  const setTab = (k: Tab) => router.replace(`/projects?tab=${k}`, { scroll: false });
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"active" | "upcoming" | "archived">("active");
   const [q, setQ] = useState("");
   const [reportProject, setReportProject] = useState<ProjectListItem | null>(null);
 
@@ -193,5 +200,13 @@ export default function ProjectsPage() {
         <ProjectReportModal project={reportProject} onClose={() => setReportProject(null)} />
       )}
     </>
+  );
+}
+
+export default function ProjectsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ProjectsInner />
+    </Suspense>
   );
 }

@@ -94,7 +94,12 @@ export class ProjectsService {
 
   async remove(id: string) {
     await this.ensureExists(id);
-    return this.prisma.project.delete({ where: { id } });
+    // 프로젝트 삭제 시 소속 업무도 함께 삭제 (관련 스케줄=Cascade / 워크로그=SetNull).
+    // owners·participants·messages는 스키마 onDelete: Cascade로 프로젝트 삭제 시 자동 삭제.
+    return this.prisma.$transaction(async (tx) => {
+      await tx.task.deleteMany({ where: { projectId: id } });
+      return tx.project.delete({ where: { id } });
+    });
   }
 
   // ───────── 담당자(owner) ─────────

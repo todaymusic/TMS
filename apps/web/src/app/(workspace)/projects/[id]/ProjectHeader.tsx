@@ -111,7 +111,7 @@ export default function ProjectHeader({ project }: { project: ProjectDetail }) {
               {canDeleteProject &&
                 (confirmDel ? (
                   <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                    <span style={{ fontSize: 11.5, color: "#dc2626", fontWeight: 700 }}>업무까지 전부 삭제?</span>
+                    <span style={{ fontSize: 11.5, color: "#dc2626", fontWeight: 700 }}>업무까지 전부 삭제? (되돌리기 불가)</span>
                     <button
                       className="btn sm"
                       style={{ color: "#fff", background: "#dc2626", borderColor: "#dc2626" }}
@@ -127,7 +127,7 @@ export default function ProjectHeader({ project }: { project: ProjectDetail }) {
                     className="btn sm"
                     style={{ color: "#dc2626", borderColor: "#f0c9c9" }}
                     onClick={() => setConfirmDel(true)}
-                    title="프로젝트 삭제 — 소속 업무·메시지까지 함께 삭제됩니다 (담당자/관리자)"
+                    title="프로젝트 삭제 — 소속 업무·멤버·커뮤니케이션 메시지까지 전부 삭제됩니다 (되돌리기 불가, 담당자/관리자)"
                   >
                     🗑 삭제
                   </button>

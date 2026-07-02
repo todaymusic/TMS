@@ -20,12 +20,14 @@ export const config = {
   matcher: [
     "/",
     "/dashboard/:path*",
+    "/monitor/:path*",
     "/projects/:path*",
     "/calendar/:path*",
     "/activity/:path*",
     "/requests/:path*",
     "/settings/:path*",
     "/dm/:path*",
+    "/links/:path*",
     "/login",
   ],
 };
