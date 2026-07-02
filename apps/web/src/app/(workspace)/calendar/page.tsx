@@ -15,11 +15,6 @@ import { MeetingCreateModal, MeetingDetailModal } from "./MeetingModals";
 const DOWS = ["월", "화", "수", "목", "금", "토", "일"];
 
 type EvKind = "done" | "prog" | "late";
-const EV_STYLE: Record<EvKind, React.CSSProperties> = {
-  done: { background: "#dcfce7", color: "#15803d" },
-  prog: { background: "#dbeafe", color: "#1d4ed8" },
-  late: { background: "#fee2e2", color: "#b91c1c" },
-};
 
 type LeaveCal = Leave & { user: { id: string; name: string; avatarColor: string } };
 const LEAVE_LABEL: Record<LeaveType, string> = {
@@ -291,23 +286,20 @@ export default function CalendarPage() {
                 {tab === "task" &&
                   c.tasks.map((t) => {
                     const k = evKind(t, today);
+                    const color = t.assignee?.avatarColor ?? "#9ca3af";
                     return (
                       <div
                         key={t.id}
                         className="cal-ev"
-                        style={{ ...EV_STYLE[k], display: "flex", alignItems: "center", gap: 4 }}
-                        title={t.assignee?.name ? `${t.assignee.name} · ${t.title}` : t.title}
+                        style={{
+                          background: color,
+                          color: "#fff",
+                          opacity: k === "done" ? 0.68 : 1,
+                          ...(k === "late" ? { boxShadow: "inset 0 0 0 2px #b91c1c" } : {}),
+                        }}
+                        title={`${t.assignee?.name ?? "미배정"} · ${t.title}${k === "late" ? " · 마감초과" : k === "done" ? " · 완료" : ""}`}
                       >
-                        <span
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: "50%",
-                            background: t.assignee?.avatarColor ?? "#9ca3af",
-                            flexShrink: 0,
-                          }}
-                        />
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
+                        {t.title}
                       </div>
                     );
                   })}
