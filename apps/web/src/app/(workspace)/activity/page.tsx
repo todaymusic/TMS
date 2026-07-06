@@ -127,6 +127,8 @@ function ActivityInner() {
   const memoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const memoLatest = useRef<string>("");   // 최신 입력값(즉시 저장/flush용)
   const memoSaved = useRef<string>("");    // 마지막으로 서버에 저장된 값(중복 저장 방지)
+  // 지난일 데일리 평가(서버 보관 · localStorage 캐시 폴백)
+  const [pastDaily, setPastDaily] = useState<{ comment?: string; review?: string } | null>(null);
 
   async function load() {
     if (!me || !targetId) return;
@@ -259,6 +261,36 @@ function ActivityInner() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.id]);
+
+  // 지난일 데일리 평가 로드 — 서버 정본(GET /ai/daily-report), localStorage는 즉시표시·폴백
+  useEffect(() => {
+    if (!me?.id || dayOffset > 0) {
+      setPastDaily(null);
+      return;
+    }
+    const d = new Date();
+    d.setDate(d.getDate() + dayOffset);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    let alive = true;
+    try {
+      const raw = localStorage.getItem(dailyKey(me.id, key));
+      setPastDaily(raw ? (JSON.parse(raw) as { comment?: string; review?: string }) : null);
+    } catch {
+      setPastDaily(null);
+    }
+    api
+      .get<{ comment?: string; review?: string; exists?: boolean }>(
+        `/ai/daily-report?userId=${me.id}&date=${key}`,
+      )
+      .then((r) => {
+        if (alive && r.exists) setPastDaily({ comment: r.comment, review: r.review });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.id, dayOffset]);
 
   // 메인 업무 지정 불러오기(개인)
   useEffect(() => {
@@ -412,7 +444,10 @@ function ActivityInner() {
   const statMonthKey = `${statMonth.getFullYear()}-${String(statMonth.getMonth() + 1).padStart(2, "0")}`;
   const endMonthKey = (t: Task) =>
     t.endedAt ? `${new Date(t.endedAt).getFullYear()}-${String(new Date(t.endedAt).getMonth() + 1).padStart(2, "0")}` : "";
-  const doneInMonth = tasks.filter((t) => stateOf(t) === "done" && endMonthKey(t) === statMonthKey);
+  const doneInMonth = tasks
+    .filter((t) => stateOf(t) === "done" && endMonthKey(t) === statMonthKey)
+    // 최근 완료(종료 시각)순 — 최신 완료가 위로
+    .sort((a, b) => new Date(b.endedAt ?? 0).getTime() - new Date(a.endedAt ?? 0).getTime());
   const doingNow = tasks.filter((t) => t.status === "doing");
   const todoNow = tasks.filter((t) => t.status === "todo");
   const nowMs = Date.now();
@@ -507,19 +542,6 @@ function ActivityInner() {
   // ───── 스케줄(오늘): 계획 + 실제 + 근태 ─────
   const _td = new Date();
   const dateKeyISO = `${_td.getFullYear()}-${String(_td.getMonth() + 1).padStart(2, "0")}-${String(_td.getDate()).padStart(2, "0")}`;
-  // 보고 있는 날짜(선택 날짜) 키 + 그날 데일리 평가(지난날만)
-  const selDateKeyISO = `${selDate.getFullYear()}-${String(selDate.getMonth() + 1).padStart(2, "0")}-${String(selDate.getDate()).padStart(2, "0")}`;
-  const pastDaily: { comment?: string; review?: string } | null =
-    dayOffset <= 0 && me?.id
-      ? (() => {
-          try {
-            const raw = localStorage.getItem(dailyKey(me.id, selDateKeyISO));
-            return raw ? (JSON.parse(raw) as { comment?: string; review?: string }) : null;
-          } catch {
-            return null;
-          }
-        })()
-      : null;
   const work = { start: targetUser?.workStart, end: targetUser?.workEnd };
   const todayLeave = userLeaves.find((l) => {
     if (l.status !== "approved") return false;
@@ -1294,7 +1316,9 @@ function ActivityInner() {
                 className="inp"
                 value={endNote}
                 onChange={(e) => setEndNote(e.target.value)}
-                placeholder="마무리 코멘트"
+                placeholder="마무리 코멘트 — 길게 적어도 됩니다. 오른쪽 아래 모서리를 드래그해 칸을 늘릴 수 있어요."
+                rows={6}
+                style={{ minHeight: 140, resize: "vertical", lineHeight: 1.6 }}
               />
             </div>
             <div style={{ display: "flex", gap: 8 }}>

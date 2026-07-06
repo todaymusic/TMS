@@ -8,4 +8,8 @@ export class UpdateProjectDto extends PartialType(CreateProjectDto) {
   @Min(0)
   @Max(100)
   progress?: number;
+
+  // 프로젝트 리포트 노트 {summary, issues, next} — 서버 보관
+  @IsOptional()
+  reportNotes?: { summary?: string; issues?: string; next?: string };
 }

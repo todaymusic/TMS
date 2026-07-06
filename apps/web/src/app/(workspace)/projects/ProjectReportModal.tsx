@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, progressColor, type ProjectListItem, type Task } from "@/lib/api";
 
 function fmt(d: string | null): string {
@@ -24,26 +24,76 @@ export default function ProjectReportModal({
 }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [notes, setNotes] = useState<Notes>({ summary: "", issues: "", next: "" });
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latest = useRef<Notes>({ summary: "", issues: "", next: "" });
+  const dirty = useRef(false); // 사용자가 실제 편집했을 때만 서버 저장(빈 값 덮어쓰기 방지)
 
   useEffect(() => {
     api.get<Task[]>(`/tasks?projectId=${project.id}`).then(setTasks).catch(() => {});
+    // 캐시로 즉시 표시
     try {
       const raw = localStorage.getItem(`tms_report_${project.id}`);
-      if (raw) setNotes({ summary: "", issues: "", next: "", ...JSON.parse(raw) });
+      if (raw) {
+        const n = { summary: "", issues: "", next: "", ...JSON.parse(raw) };
+        setNotes(n);
+        latest.current = n;
+      }
     } catch {
       /* noop */
     }
+    // 서버 정본 로드
+    api
+      .get<{ reportNotes?: Partial<Notes> | null }>(`/projects/${project.id}`)
+      .then((p) => {
+        if (p.reportNotes) {
+          const n = { summary: "", issues: "", next: "", ...p.reportNotes };
+          setNotes(n);
+          latest.current = n;
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
+
+  async function flushSave() {
+    if (!dirty.current) return; // 편집 없었으면 저장 안 함(서버 값 보호)
+    setSaveState("saving");
+    try {
+      await api.patch(`/projects/${project.id}`, { reportNotes: latest.current });
+      setSaveState("saved");
+    } catch {
+      setSaveState("idle");
+    }
+  }
 
   function update(k: keyof Notes, v: string) {
     const n = { ...notes, [k]: v };
     setNotes(n);
+    latest.current = n;
+    dirty.current = true;
+    // 오프라인 대비 즉시 캐시
     try {
       localStorage.setItem(`tms_report_${project.id}`, JSON.stringify(n));
     } catch {
       /* noop */
     }
+    // 서버 자동저장(0.8초 디바운스)
+    setSaveState("saving");
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void flushSave();
+    }, 800);
   }
+
+  // 모달 닫힐 때 마지막 편집 확실히 저장
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      void flushSave();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const done = tasks.filter((t) => t.status === "done" || t.status === "completed_pending");
   const durs = done.map(durH).filter((x): x is number => x != null);
@@ -86,6 +136,9 @@ export default function ProjectReportModal({
         {/* 상단 바 (인쇄 시 숨김) */}
         <div className="no-print" style={{ display: "flex", gap: 8, alignItems: "center", padding: "12px 18px", borderBottom: "1px solid var(--border)" }}>
           <b style={{ fontSize: 14 }}>📄 프로젝트 리포트</b>
+          <span style={{ fontSize: 11, color: saveState === "saved" ? "#16a34a" : "#9ca3af" }}>
+            {saveState === "saving" ? "저장 중…" : saveState === "saved" ? "저장됨 ✓" : ""}
+          </span>
           <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <button className="btn primary sm" onClick={() => window.print()}>🖨 인쇄 / PDF 저장</button>
             <button className="btn sm" onClick={onClose}>닫기</button>

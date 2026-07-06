@@ -103,6 +103,23 @@ model User {
   channelMemberships ChannelMember[]
   channelMessages    ChannelMessage[]
   scheduleBlocks    ScheduleBlock[]
+  dailyReports      DailyReport[]
+}
+
+// 데일리 리포트 / AI 평가 — 업무 종료 시 저장(사용자·날짜당 1개), 지난일 조회에 표시(서버 보관)
+model DailyReport {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  date      String // "YYYY-MM-DD" (KST 기준 종료일)
+  comment   String? // 본인 데일리 한줄평
+  review    String? // AI 데일리 평가
+  taskCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
 }
 
 // 채팅 채널(방): dm(1:1) / group(다수) / broadcast(전체 공지)
@@ -156,6 +173,7 @@ model Project {
   progress  Int           @default(0) // 0~100
   aiSummary Json? // AI 소통 요약 (핵심결정/진행/미결)
   links     Json? // 관련 데이터 링크 [{label, url}]
+  reportNotes Json? // 프로젝트 리포트 노트 {summary, issues, next} — 팀 공유·서버 보관
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 

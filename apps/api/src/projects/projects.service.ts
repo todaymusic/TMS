@@ -74,7 +74,7 @@ export class ProjectsService {
 
   async update(id: string, dto: UpdateProjectDto) {
     await this.ensureExists(id);
-    const { startDate, endDate, links, ...rest } = dto;
+    const { startDate, endDate, links, reportNotes, ...rest } = dto;
     return this.prisma.project.update({
       where: { id },
       data: {
@@ -87,6 +87,9 @@ export class ProjectsService {
           : {}),
         ...(links !== undefined
           ? { links: links as unknown as Prisma.InputJsonValue }
+          : {}),
+        ...(reportNotes !== undefined
+          ? { reportNotes: reportNotes as unknown as Prisma.InputJsonValue }
           : {}),
       },
     });

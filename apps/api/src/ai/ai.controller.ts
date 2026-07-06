@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
 import { AiService } from './ai.service';
 
@@ -53,5 +53,14 @@ export class AiController {
     @Body() body: { comment?: string; taskIds?: string[] },
   ) {
     return this.ai.dailyReview(userId, date, body?.comment, body?.taskIds);
+  }
+
+  // 저장된 데일리 리포트/AI 평가 조회 — 지난일 조회용
+  @Get('daily-report')
+  getDailyReport(
+    @Query('userId') userId: string,
+    @Query('date') date: string,
+  ) {
+    return this.ai.getDailyReport(userId, date);
   }
 }

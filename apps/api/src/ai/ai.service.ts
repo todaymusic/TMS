@@ -303,7 +303,37 @@ export class AiService {
         },
       ],
     });
-    return { review: this.textOf(msg) };
+    const review = this.textOf(msg);
+    // 서버 보관(사용자·날짜당 1개) — 지난일 조회에서 어느 기기에서든 표시
+    await this.prisma.dailyReport.upsert({
+      where: { userId_date: { userId, date } },
+      create: {
+        userId,
+        date,
+        comment: comment?.trim() || null,
+        review,
+        taskCount: tasks.length,
+      },
+      update: {
+        comment: comment?.trim() || null,
+        review,
+        taskCount: tasks.length,
+      },
+    });
+    return { review };
+  }
+
+  /** 저장된 데일리 리포트/AI 평가 조회 — 지난일 조회용(없으면 빈 값) */
+  async getDailyReport(userId: string, date: string) {
+    const r = await this.prisma.dailyReport.findUnique({
+      where: { userId_date: { userId, date } },
+    });
+    return {
+      comment: r?.comment ?? '',
+      review: r?.review ?? '',
+      taskCount: r?.taskCount ?? 0,
+      exists: !!r,
+    };
   }
 
   /** 프로젝트 대화 → AI 소통 요약(핵심결정/진행/미결), Project.aiSummary 에 저장 */
