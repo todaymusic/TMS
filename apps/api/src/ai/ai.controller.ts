@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
 import { AiService } from './ai.service';
 
@@ -62,5 +70,14 @@ export class AiController {
     @Query('date') date: string,
   ) {
     return this.ai.getDailyReport(userId, date);
+  }
+
+  // 데일리 리포트 삭제(해당 사용자·날짜)
+  @Delete('daily-report')
+  deleteDailyReport(
+    @Query('userId') userId: string,
+    @Query('date') date: string,
+  ) {
+    return this.ai.deleteDailyReport(userId, date);
   }
 }

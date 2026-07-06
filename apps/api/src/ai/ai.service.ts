@@ -336,6 +336,14 @@ export class AiService {
     };
   }
 
+  /** 데일리 리포트 삭제(해당 사용자·날짜) */
+  async deleteDailyReport(userId: string, date: string) {
+    const res = await this.prisma.dailyReport.deleteMany({
+      where: { userId, date },
+    });
+    return { deleted: res.count };
+  }
+
   /** 프로젝트 대화 → AI 소통 요약(핵심결정/진행/미결), Project.aiSummary 에 저장 */
   async summarizeProject(projectId: string) {
     const project = await this.prisma.project.findUnique({
