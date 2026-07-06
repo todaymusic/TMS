@@ -28,6 +28,12 @@ export class TasksController {
     return this.tasks.findAll(query);
   }
 
+  // 하루 경계 리셋 — 전날부터 진행중이던 내 업무를 자동 '중단'으로 내림(앱 진입 시 호출)
+  @Post('day-reset')
+  dayReset(@Query('userId') userId: string) {
+    return this.tasks.dayReset(userId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.tasks.findOne(id);

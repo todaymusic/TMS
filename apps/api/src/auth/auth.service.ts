@@ -102,4 +102,23 @@ export class AuthService {
     });
     return { ok: true, user: this.sanitize(updated) };
   }
+
+  /** 내 활동 개인 메모(포스트잇) 조회 — 본인 것만 */
+  async getMemo(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { scratchMemo: true },
+    });
+    if (!user) throw new NotFoundException('사용자를 찾을 수 없습니다');
+    return { memo: user.scratchMemo ?? '' };
+  }
+
+  /** 내 활동 개인 메모 저장 — 자동저장(디바운스)에서 호출 */
+  async setMemo(userId: string, memo: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { scratchMemo: memo },
+    });
+    return { ok: true };
+  }
 }

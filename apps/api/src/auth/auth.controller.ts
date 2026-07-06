@@ -2,11 +2,18 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Post,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -36,6 +43,13 @@ class ChangePasswordDto {
   @IsString()
   @MinLength(4)
   newPassword!: string;
+}
+
+class MemoDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(20000)
+  memo?: string;
 }
 
 @Controller('auth')
@@ -71,6 +85,22 @@ export class AuthController {
   @Post('clock-out')
   clockOut(@Req() req: Request & { user?: { id: string } }) {
     return this.auth.clockOut(req.user!.id);
+  }
+
+  // 내 활동 개인 메모(포스트잇) — 자동저장·서버 보관
+  @UseGuards(JwtAuthGuard)
+  @Get('memo')
+  getMemo(@Req() req: Request & { user?: { id: string } }) {
+    return this.auth.getMemo(req.user!.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('memo')
+  setMemo(
+    @Req() req: Request & { user?: { id: string } },
+    @Body() dto: MemoDto,
+  ) {
+    return this.auth.setMemo(req.user!.id, dto.memo ?? '');
   }
 
   @UseGuards(JwtAuthGuard)

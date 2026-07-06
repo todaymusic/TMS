@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { api, progressColor, type Leave, type Priority, type Task, type User } from "@/lib/api";
@@ -121,12 +121,25 @@ function ActivityInner() {
   const [curDragId, setCurDragId] = useState<string | null>(null);
   // 업무설명 doc 새 창
   const [docTask, setDocTask] = useState<{ id: string; title: string } | null>(null);
-  // 포스트잇 자유 메모(개인 · localStorage 저장)
+  // 포스트잇 자유 메모(개인 · 서버 DB 저장 + 자동저장, localStorage는 오프라인 캐시)
   const [scratch, setScratch] = useState("");
+  const [memoStatus, setMemoStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const memoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const memoLatest = useRef<string>("");   // 최신 입력값(즉시 저장/flush용)
+  const memoSaved = useRef<string>("");    // 마지막으로 서버에 저장된 값(중복 저장 방지)
 
   async function load() {
     if (!me || !targetId) return;
     setErr(null);
+    // 하루 경계 리셋: 전날부터 진행중이던 내 업무를 '중단'으로 내린 뒤 목록을 불러온다
+    // (퇴근/종료를 안 누르고 탭만 닫아도 다음날 '현재 업무중'에 남지 않게)
+    if (isSelf && me?.id) {
+      try {
+        await api.post(`/tasks/day-reset?userId=${me.id}`, {});
+      } catch {
+        /* 실패해도 아래 목록 로딩은 계속 */
+      }
+    }
     try {
       const [t, lv, asg] = await Promise.all([
         api.get<Task[]>(`/tasks?assigneeId=${targetId}`),
@@ -159,23 +172,93 @@ function ActivityInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me, viewId]);
 
-  // 포스트잇 메모 불러오기(본인)
+  // 포스트잇 메모 불러오기(본인) — 서버 정본, localStorage는 즉시표시·오프라인 폴백
   useEffect(() => {
     if (!me?.id) return;
+    let alive = true;
+    // 1) 캐시로 즉시 표시(깜빡임 방지)
     try {
-      setScratch(localStorage.getItem(`tms_scratch_${me.id}`) ?? "");
+      const cached = localStorage.getItem(`tms_scratch_${me.id}`);
+      if (cached != null) {
+        setScratch(cached);
+        memoLatest.current = cached;
+      }
     } catch {
       /* noop */
     }
+    // 2) 서버 정본 로드
+    api
+      .get<{ memo: string }>("/auth/memo")
+      .then((r) => {
+        if (!alive) return;
+        const v = r.memo ?? "";
+        setScratch(v);
+        memoLatest.current = v;
+        memoSaved.current = v;
+        try {
+          if (me?.id) localStorage.setItem(`tms_scratch_${me.id}`, v);
+        } catch {
+          /* noop */
+        }
+      })
+      .catch(() => {
+        /* 오프라인/실패 시 캐시 유지 */
+      });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.id]);
+
+  // 서버로 실제 저장(중복·불필요 저장 방지)
+  async function flushMemo() {
+    if (!me?.id) return;
+    const v = memoLatest.current;
+    if (v === memoSaved.current) return; // 바뀐 게 없으면 skip
+    setMemoStatus("saving");
+    try {
+      await api.patch("/auth/memo", { memo: v });
+      memoSaved.current = v;
+      setMemoStatus("saved");
+    } catch {
+      // 실패해도 localStorage 캐시엔 남아있음 → 다음 입력/이탈 때 재시도
+      setMemoStatus("idle");
+    }
+  }
+
   function updateScratch(v: string) {
     setScratch(v);
+    memoLatest.current = v;
+    // 오프라인 대비 즉시 캐시
     try {
       if (me?.id) localStorage.setItem(`tms_scratch_${me.id}`, v);
     } catch {
       /* noop */
     }
+    // 디바운스 자동저장(0.8초)
+    setMemoStatus("saving");
+    if (memoTimer.current) clearTimeout(memoTimer.current);
+    memoTimer.current = setTimeout(() => {
+      void flushMemo();
+    }, 800);
   }
+
+  // 입력칸 이탈/탭 숨김/페이지 이탈 시에도 저장(유실 방지)
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") {
+        if (memoTimer.current) clearTimeout(memoTimer.current);
+        void flushMemo();
+      }
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onHide);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.id]);
 
   // 메인 업무 지정 불러오기(개인)
   useEffect(() => {
@@ -798,7 +881,7 @@ function ActivityInner() {
                       )}
                       {it.status === "paused" && (
                         <>
-                          <span className="pill" style={{ background: "#fef3c7", color: "#a16207", fontSize: 10 }}>중단됨</span>
+                          <span className="pill" style={{ background: "#fef3c7", color: "#a16207", fontSize: 10 }}>진행중이던 업무</span>
                           {isSelf && (
                             <button className="btn sm" onClick={(e) => { e.stopPropagation(); openEnd(it); }} disabled={busy === it.id}>
                               ✓ 완료
@@ -1121,11 +1204,20 @@ function ActivityInner() {
                   boxShadow: "0 2px 8px rgba(0,0,0,.06)",
                 }}
               >
-                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: "#8a6d0b" }}>📌 메모</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: "#8a6d0b" }}>📌 메모</div>
+                  <div style={{ fontSize: 11, color: memoStatus === "saved" ? "#16a34a" : "#a89545" }}>
+                    {memoStatus === "saving" ? "저장 중…" : memoStatus === "saved" ? "저장됨 ✓" : ""}
+                  </div>
+                </div>
                 <textarea
                   value={scratch}
                   onChange={(e) => updateScratch(e.target.value)}
-                  placeholder="자유롭게 끄적여보세요… (자동 저장)"
+                  onBlur={() => {
+                    if (memoTimer.current) clearTimeout(memoTimer.current);
+                    void flushMemo();
+                  }}
+                  placeholder="자유롭게 끄적여보세요… (서버 자동 저장)"
                   style={{
                     width: "100%",
                     minHeight: 160,

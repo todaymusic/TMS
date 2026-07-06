@@ -86,6 +86,7 @@ model User {
   clockedOut    Boolean    @default(false) // 업무 종료(퇴근) 상태 — 현황판 표시
   workStart     String? // 출근 시간 "HH:mm" (퇴근 알림용)
   workEnd       String? // 퇴근 시간 "HH:mm"
+  scratchMemo   String? // 내 활동 개인 자유 메모(포스트잇) — 본인만, 자동저장, 서버 보관
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 

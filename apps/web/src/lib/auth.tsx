@@ -49,6 +49,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem("tms_user", JSON.stringify(fresh));
         })
         .catch(() => {});
+
+      // 앱 진입 시 하루 경계 리셋 — 전날 진행중이던 업무 자동 '중단'(자동로그인 케이스 포함)
+      try {
+        const u = JSON.parse(
+          localStorage.getItem("tms_user") || "null",
+        ) as User | null;
+        if (u?.id) api.post(`/tasks/day-reset?userId=${u.id}`, {}).catch(() => {});
+      } catch {
+        /* noop */
+      }
     }
 
     // 접속 하트비트 — 현황판 온라인/오프라인 판정용 (탭 닫히면 멈춰서 곧 오프라인)

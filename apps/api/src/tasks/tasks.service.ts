@@ -244,6 +244,70 @@ export class TasksService {
     return updated;
   }
 
+  // 한국시간(KST=UTC+9) 오늘 0시의 UTC 순간
+  private kstDayStart(now: Date): Date {
+    const kst = new Date(now.getTime() + 9 * 3600_000);
+    kst.setUTCHours(0, 0, 0, 0);
+    return new Date(kst.getTime() - 9 * 3600_000);
+  }
+
+  // 열린 WorkLog를 '시작한 날의 근무종료(workEnd, 없으면 18:00)'로 닫아 밤샘 시간 과다집계 방지
+  private kstWorkEnd(startedAt: Date, workEnd?: string | null): Date {
+    const [hRaw, mRaw] = (workEnd ?? '18:00').split(':');
+    const h = parseInt(hRaw, 10);
+    const m = parseInt(mRaw, 10);
+    const kst = new Date(startedAt.getTime() + 9 * 3600_000);
+    kst.setUTCHours(Number.isFinite(h) ? h : 18, Number.isFinite(m) ? m : 0, 0, 0);
+    const cap = new Date(kst.getTime() - 9 * 3600_000);
+    return cap > startedAt ? cap : startedAt;
+  }
+
+  /**
+   * 하루 경계 리셋 — 전날 시작해서 아직 '진행중(doing)'인 내 업무를 자동으로 '중단(paused)'으로 내린다.
+   * (퇴근/종료를 안 누르고 탭만 닫아도 다음날 '현재 업무중'에 남지 않게 → 앱 진입 시 호출)
+   * 열린 WorkLog는 시작일 근무종료시각으로 닫는다. 오늘 시작해 진행중인 건 그대로 둔다.
+   */
+  async dayReset(userId: string) {
+    if (!userId) return { reset: 0 };
+    const todayStart = this.kstDayStart(new Date());
+    // 내가 수행자인 doing 업무의, 오늘(KST) 이전에 시작된 '열린' 세션들
+    const staleLogs = await this.prisma.workLog.findMany({
+      where: {
+        userId,
+        endedAt: null,
+        startedAt: { lt: todayStart },
+        task: { is: { assigneeId: userId, status: TaskStatus.doing } },
+      },
+      select: { id: true, taskId: true, startedAt: true },
+    });
+    if (staleLogs.length === 0) return { reset: 0 };
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { workEnd: true },
+    });
+    const taskIds = [
+      ...new Set(
+        staleLogs
+          .map((l) => l.taskId)
+          .filter((x): x is string => !!x),
+      ),
+    ];
+    await this.prisma.$transaction([
+      ...staleLogs.map((l) =>
+        this.prisma.workLog.update({
+          where: { id: l.id },
+          data: { endedAt: this.kstWorkEnd(l.startedAt, user?.workEnd) },
+        }),
+      ),
+      this.prisma.task.updateMany({
+        where: { id: { in: taskIds }, assigneeId: userId, status: TaskStatus.doing },
+        data: { status: TaskStatus.paused },
+      }),
+    ]);
+    return { reset: taskIds.length };
+  }
+
   /**
    * 업무 중단 — 잠시 멈춤. 열린 WorkLog 닫고 status=paused (시간 기록 남김).
    */
