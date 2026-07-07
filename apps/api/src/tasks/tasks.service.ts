@@ -315,13 +315,15 @@ export class TasksService {
   async pause(id: string, reason?: string) {
     await this.findOne(id);
     const now = new Date();
+    const r = reason?.trim();
+    // 일시정지 시각(WorkLog.endedAt)과 사유(note)를 함께 기록 — 시간과 함께 남는 이력
     await this.prisma.workLog.updateMany({
       where: { taskId: id, endedAt: null },
-      data: { endedAt: now },
+      data: { endedAt: now, ...(r ? { note: `⏸ ${r}` } : {}) },
     });
     return this.prisma.task.update({
       where: { id },
-      data: { status: TaskStatus.paused, pauseReason: reason?.trim() || null },
+      data: { status: TaskStatus.paused, pauseReason: r || null },
       include: taskInclude,
     });
   }
