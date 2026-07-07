@@ -230,6 +230,7 @@ export class TasksService {
           status: TaskStatus.doing,
           startedAt: task.startedAt ?? now,
           pauseReason: null,
+          pausedAt: null,
         },
         include: taskInclude,
       }),
@@ -323,7 +324,7 @@ export class TasksService {
     });
     return this.prisma.task.update({
       where: { id },
-      data: { status: TaskStatus.paused, pauseReason: r || null },
+      data: { status: TaskStatus.paused, pauseReason: r || null, pausedAt: now },
       include: taskInclude,
     });
   }
@@ -339,7 +340,7 @@ export class TasksService {
     const [updated] = await this.prisma.$transaction([
       this.prisma.task.update({
         where: { id },
-        data: { status: TaskStatus.doing, pauseReason: null },
+        data: { status: TaskStatus.doing, pauseReason: null, pausedAt: null },
         include: taskInclude,
       }),
       this.prisma.workLog.create({
@@ -384,6 +385,7 @@ export class TasksService {
         endedAt: now,
         progress: 100,
         pauseReason: null,
+        pausedAt: null,
         ...(dto.reportLink !== undefined ? { reportLink: dto.reportLink } : {}),
         ...(dto.videoLink !== undefined ? { videoLink: dto.videoLink } : {}),
       },
