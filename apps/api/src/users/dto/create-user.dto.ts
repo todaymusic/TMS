@@ -49,6 +49,14 @@ export class CreateUserDto {
   isAdmin?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  disabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  password?: string; // 초기 비밀번호(계정 생성 시) / 비밀번호 초기화 — 서비스에서 bcrypt 해시
+
+  @IsOptional()
   @IsNumber()
   leaveBalance?: number;
 

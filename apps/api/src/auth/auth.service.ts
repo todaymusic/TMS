@@ -31,6 +31,9 @@ export class AuthService {
     if (!ok) {
       throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다');
     }
+    if (user.disabled) {
+      throw new UnauthorizedException('비활성화된 계정입니다. 관리자에게 문의하세요.');
+    }
     const token = await this.jwt.signAsync({ sub: user.id, email: user.email });
     // 로그인 = 새 근무 세션 시작: 접속 갱신 + 퇴근 상태 해제
     const fresh = await this.prisma.user.update({
