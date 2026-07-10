@@ -133,8 +133,7 @@ export default function MonitorPage() {
                     onClick={() => { if (t.project) router.push(`/projects/${t.project.id}`); setQ(""); }}
                     style={{ padding: "8px 10px", borderRadius: 6, cursor: t.project ? "pointer" : "default", fontSize: 13.5, display: "flex", gap: 6, alignItems: "center" }}
                   >
-                    📋 {t.title}
-                    {t.project && <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-3)" }}>{t.project.name}</span>}
+                    📋 {t.project && <span style={{ fontSize: 11, color: "var(--text-3)" }}>({t.project.name}) </span>}{t.title}
                   </div>
                 ))}
               </div>
@@ -186,12 +185,10 @@ export default function MonitorPage() {
                         <div className="member-name">{m.name}</div>
                         <div className="member-dept">{m.dept ?? ""}</div>
                       </div>
-                      <span className="pill gray" style={{ marginLeft: "auto" }}>
-                        {task?.project?.name ?? "—"}
-                      </span>
                     </div>
                     <div className="member-task">
                       {p.label}{p.sub ? " · " : ""}
+                      {task?.project && <span style={{ color: "var(--text-3)", fontSize: 11.5 }}>({task.project.name}) </span>}
                       <b>{p.sub ?? ""}</b>
                     </div>
                     {task?.statusMemo && (
