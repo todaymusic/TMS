@@ -77,6 +77,7 @@ model User {
   password      String? // bcrypt 해시 (이메일+비번 로그인). 기존 행은 null 허용
   isAdmin       Boolean    @default(false) // 슈퍼유저(관리자) 권한
   disabled      Boolean    @default(false) // 계정 비활성화(로그인 차단) — 마승일이 관리
+  app           String     @default("tms") // 소속 앱: "tms" | "hellotms" (계정 만든 앱 기준)
   leaveBalance  Float      @default(0) // 연차 잔여(일). 관리자가 기입, 승인 시 자동 차감
   monthlyLeaveGrant Float  @default(1) // 매월 자동 적립할 연차(일). 사람마다 설정(마승일만 수정)
   lastLeaveAccrual  String? // "YYYY-MM" 마지막으로 월별 연차를 적립한 달 (중복 적립 방지)

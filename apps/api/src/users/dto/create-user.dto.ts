@@ -54,6 +54,10 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
+  app?: string; // 소속 앱: "tms" | "hellotms"
+
+  @IsOptional()
+  @IsString()
   password?: string; // 초기 비밀번호(계정 생성 시) / 비밀번호 초기화 — 서비스에서 bcrypt 해시
 
   @IsOptional()
