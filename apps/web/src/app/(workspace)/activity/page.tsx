@@ -990,7 +990,7 @@ function ActivityInner() {
                       >
                         {isSelf && <span style={{ color: "var(--text-3)", fontSize: 14, userSelect: "none" }}>⠿</span>}
                         <span className="pill" style={{ background: PRI[t.priority].bg, color: PRI[t.priority].fg, fontSize: 10 }}>{PRI[t.priority].label}</span>
-                        <span style={{ flex: 1, cursor: "pointer" }} onClick={() => setDetailId(t.id)}>{t.title}</span>
+                        <span style={{ flex: 1, cursor: "pointer" }} onClick={() => setDetailId(t.id)}>{t.project && <span style={{ color: "var(--text-3)", fontSize: 11.5 }}>({t.project.name}) </span>}{t.title}</span>
                         <span className="pill gray" style={{ fontSize: 10 }}>{stLabel(t)}</span>
                         <b style={{ fontSize: 12, color: progressColor(t.progress) }}>{t.progress}%</b>
                       </div>
