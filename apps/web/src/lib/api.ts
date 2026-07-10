@@ -243,6 +243,7 @@ export type User = {
   clockedOut?: boolean;
   isAdmin?: boolean;
   leaveBalance?: number;
+  monthlyLeaveGrant?: number;
   workStart?: string | null;
   workEnd?: string | null;
 };

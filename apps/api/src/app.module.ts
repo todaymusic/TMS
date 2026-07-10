@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+// @nestjs/schedule (크론) — 앱 자체 ScheduleModule(근무 스케줄블록)과 이름 충돌 방지 위해 별칭
+import { ScheduleModule as NestScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AttendanceModule } from './attendance/attendance.module';
@@ -21,6 +23,7 @@ import { WorkLogsModule } from './worklogs/worklogs.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    NestScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     AiModule,

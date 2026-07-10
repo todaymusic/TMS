@@ -13,14 +13,14 @@ const LEAVE_LABEL: Record<LeaveType, string> = {
 const STATUS_KO = { requested: "신청됨", approved: "승인", rejected: "반려" } as const;
 
 type LeaveWithUser = Leave & { user: { id: string; name: string; avatarColor: string } };
-type Edit = { dept: string; role: string; bal: string };
+type Edit = { dept: string; role: string; bal: string; grant: string };
 
 function fmt(d: string) {
   const dt = new Date(d);
   return `${dt.getMonth() + 1}/${dt.getDate()}`;
 }
 
-export default function AdminPanel() {
+export default function AdminPanel({ canConfigAccrual = false }: { canConfigAccrual?: boolean }) {
   const [users, setUsers] = useState<User[]>([]);
   const [leaves, setLeaves] = useState<LeaveWithUser[]>([]);
   const [edits, setEdits] = useState<Record<string, Edit>>({});
@@ -37,7 +37,12 @@ export default function AdminPanel() {
       Object.fromEntries(
         u.map((x) => [
           x.id,
-          { dept: x.dept ?? "", role: x.role ?? "", bal: String(x.leaveBalance ?? 0) },
+          {
+            dept: x.dept ?? "",
+            role: x.role ?? "",
+            bal: String(x.leaveBalance ?? 0),
+            grant: String(x.monthlyLeaveGrant ?? 1),
+          },
         ]),
       ),
     );
@@ -53,6 +58,10 @@ export default function AdminPanel() {
         dept: edits[id]?.dept || undefined,
         role: edits[id]?.role || undefined,
         leaveBalance: Number(edits[id]?.bal ?? 0) || 0,
+        // 월 적립(monthlyLeaveGrant)은 마승일 계정에서만 변경 가능 — 그 외엔 미전송(기존값 유지)
+        ...(canConfigAccrual
+          ? { monthlyLeaveGrant: Number(edits[id]?.grant ?? 1) || 0 }
+          : {}),
       });
       await load();
     } finally {
@@ -109,8 +118,14 @@ export default function AdminPanel() {
       {/* 멤버 관리 */}
       <div className="card" style={{ padding: 22 }}>
         <div className="sec-title mb16">
-          <span className="em">🧑‍💼</span> 멤버 관리 (직책 · 담당업무 · 연차잔여)
+          <span className="em">🧑‍💼</span> 멤버 관리 (직책 · 담당업무 · 연차잔여{canConfigAccrual ? " · 월적립" : ""})
         </div>
+        {canConfigAccrual && (
+          <div className="hint" style={{ marginBottom: 10 }}>
+            칸 순서: 담당업무 · 직책 · <b>연차잔여</b> · <b style={{ color: "#15803d" }}>월적립(초록칸)</b>.
+            월적립은 매월 1일 자동으로 잔여 연차에 더해집니다(0이면 적립 안 함). 이 칸은 마승일 계정에만 보입니다.
+          </div>
+        )}
         <div style={{ display: "grid", gap: 12 }}>
           {users.map((u) => (
             <div key={u.id} style={{ display: "grid", gap: 6 }}>
@@ -145,6 +160,18 @@ export default function AdminPanel() {
                   onChange={(e) => upd(u.id, { bal: e.target.value })}
                   style={{ width: 52, padding: "6px 6px", flexShrink: 0 }}
                 />
+                {canConfigAccrual && (
+                  <input
+                    className="inp"
+                    type="number"
+                    step="0.25"
+                    min="0"
+                    title="월 자동적립(일) — 매월 1일 자동 지급"
+                    value={edits[u.id]?.grant ?? "1"}
+                    onChange={(e) => upd(u.id, { grant: e.target.value })}
+                    style={{ width: 52, padding: "6px 6px", flexShrink: 0, background: "#f0fdf4" }}
+                  />
+                )}
                 <button
                   className="btn primary sm"
                   style={{ flexShrink: 0, padding: "6px 12px" }}

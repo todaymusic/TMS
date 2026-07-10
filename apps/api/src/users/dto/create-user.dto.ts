@@ -51,4 +51,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsNumber()
   leaveBalance?: number;
+
+  @IsOptional()
+  @IsNumber()
+  monthlyLeaveGrant?: number;
 }
