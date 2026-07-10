@@ -43,6 +43,35 @@ export class AuthService {
     return { accessToken: token, user: this.sanitize(fresh) };
   }
 
+  // 두 앱을 오가는 대표 계정(이름 기준). tms=마승일, hellotms=신선중
+  private readonly SUPER_ADMINS = ['마승일', '신선중'];
+
+  // 대표 계정 간 전환(비번 없이) — 마승일 ↔ 신선중. 요청자도 대표여야 함.
+  async switchApp(requesterId: string, toApp: string) {
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+    });
+    if (!requester || !this.SUPER_ADMINS.includes(requester.name)) {
+      throw new ForbiddenException('앱 전환 권한이 없습니다');
+    }
+    // 대상 앱의 대표 계정 찾기(대표 이름 중 app이 일치하는 계정)
+    const target = await this.prisma.user.findFirst({
+      where: { name: { in: this.SUPER_ADMINS }, app: toApp },
+    });
+    if (!target) {
+      throw new NotFoundException(`'${toApp}' 앱의 대표 계정을 찾을 수 없습니다`);
+    }
+    const token = await this.jwt.signAsync({
+      sub: target.id,
+      email: target.email,
+    });
+    const fresh = await this.prisma.user.update({
+      where: { id: target.id },
+      data: { lastSeenAt: new Date(), clockedOut: false },
+    });
+    return { accessToken: token, user: this.sanitize(fresh) };
+  }
+
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('사용자를 찾을 수 없습니다');

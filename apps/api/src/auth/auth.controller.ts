@@ -52,6 +52,11 @@ class MemoDto {
   memo?: string;
 }
 
+class SwitchAppDto {
+  @IsString()
+  app!: string; // "tms" | "hellotms"
+}
+
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
@@ -71,6 +76,16 @@ export class AuthController {
   @Get('me')
   me(@Req() req: Request & { user?: { id: string } }) {
     return this.auth.me(req.user!.id);
+  }
+
+  // 대표 계정 전환(마승일 ↔ 신선중) — 비번 없이, 대표만
+  @UseGuards(JwtAuthGuard)
+  @Post('switch-app')
+  switchApp(
+    @Req() req: Request & { user?: { id: string } },
+    @Body() dto: SwitchAppDto,
+  ) {
+    return this.auth.switchApp(req.user!.id, dto.app);
   }
 
   // 접속 중 하트비트(현황판 온라인 판정)
