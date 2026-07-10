@@ -48,6 +48,12 @@ export class LeavesService {
     const leave = await this.prisma.leave.findUnique({ where: { id } });
     if (!leave) throw new NotFoundException(`Leave ${id} not found`);
 
+    // 반려(미승인) → 근무 캘린더에 남기지 않도록 아예 삭제.
+    // (승인됐던 건을 뒤늦게 반려하면 remove가 차감된 잔여 연차까지 복구)
+    if (dto.status === LeaveStatus.rejected) {
+      return this.remove(id);
+    }
+
     // requested → approved 전이 시에만 연차 잔여 차감(중복 방지)
     const willDeduct =
       dto.status === LeaveStatus.approved &&

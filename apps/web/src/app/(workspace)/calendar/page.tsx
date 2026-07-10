@@ -128,8 +128,10 @@ export default function CalendarPage() {
     }
 
     // 근무(연차): 시작~종료 기간 전체 날짜에 표시
+    // 반려(미승인)된 연차는 캘린더에 표시하지 않음 (기존 데이터 포함)
     const leaveByDay = new Map<number, LeaveCal[]>();
     for (const lv of leaves) {
+      if (lv.status === "rejected") continue;
       const s = new Date(lv.startDate);
       const e = new Date(lv.endDate);
       for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
