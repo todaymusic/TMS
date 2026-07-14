@@ -9,21 +9,29 @@ export default function ReviewModal({
   task,
   onClose,
   onDone,
+  readOnly = false,
 }: {
   task: Task;
   onClose: () => void;
-  onDone: () => void;
+  onDone?: () => void;
+  readOnly?: boolean; // 읽기전용: 저장된 등급·AI평가만 표시(승인/재작업 없음)
 }) {
   const [review, setReview] = useState<string | null>(task.aiReview ?? null);
   const [recGrade, setRecGrade] = useState<string>("");
   const [grade, setGrade] = useState<string>("양호");
-  const [loading, setLoading] = useState(true);
+  // 읽기전용이고 이미 저장된 평가가 있으면 재생성 없이 바로 표시
+  const [loading, setLoading] = useState(!(readOnly && task.aiReview));
   const [busy, setBusy] = useState(false);
   const [reworking, setReworking] = useState(false);
   const [reason, setReason] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    // 읽기전용 + 저장된 평가 있음 → API 호출(재생성) 안 함
+    if (readOnly && task.aiReview) {
+      setReview(task.aiReview);
+      return;
+    }
     (async () => {
       try {
         const r = await api.post<{ evaluation: string; grade: string }>(`/tasks/${task.id}/ai-review`, {});
@@ -43,7 +51,7 @@ export default function ReviewModal({
     setBusy(true);
     try {
       await api.post(`/tasks/${task.id}/approve`, { grade });
-      onDone();
+      onDone?.();
       onClose();
     } finally {
       setBusy(false);
@@ -57,7 +65,7 @@ export default function ReviewModal({
     setBusy(true);
     try {
       await api.post(`/tasks/${task.id}/rework`, { reason: reason.trim() });
-      onDone();
+      onDone?.();
       onClose();
     } finally {
       setBusy(false);
@@ -70,7 +78,10 @@ export default function ReviewModal({
     <div onClick={() => !busy && onClose()} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", zIndex: 55, padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: "100%", maxWidth: 520, maxHeight: "90vh", overflow: "auto", padding: 22 }}>
         <div className="sec-title mb16">
-          <span className="em">🔍</span> 업무 검수 — {task.title}
+          <span className="em">🔍</span> {readOnly ? "완료 평가" : "업무 검수"} — {task.title}
+          {readOnly && task.grade && (
+            <span className="pill" style={{ background: "#dcfce7", color: "#15803d", marginLeft: 6 }}>등급 {task.grade}</span>
+          )}
           {task.reworkCount ? <span className="pill" style={{ background: "#ffedd5", color: "#c2410c", marginLeft: 6 }}>재작업 #{task.reworkCount}</span> : null}
         </div>
 
@@ -98,7 +109,16 @@ export default function ReviewModal({
 
         {err && <div style={{ color: "#dc2626", fontSize: 13, marginTop: 8 }}>{err}</div>}
 
-        {!reworking ? (
+        {readOnly ? (
+          <div style={{ display: "flex", alignItems: "center", marginTop: 18 }}>
+            {task.grade && (
+              <span style={{ fontSize: 13 }}>
+                검수 등급: <b style={{ color: "#15803d" }}>{task.grade}</b>
+              </span>
+            )}
+            <button className="btn" style={{ marginLeft: "auto" }} onClick={onClose}>닫기</button>
+          </div>
+        ) : !reworking ? (
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 18 }}>
             <button className="btn" style={{ color: "#c2410c" }} onClick={() => setReworking(true)} disabled={busy}>
               🔁 재작업 요청

@@ -25,9 +25,32 @@ export default function ProjectHeader({ project }: { project: ProjectDetail }) {
   const [busy, setBusy] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
 
-  // 프로젝트 삭제는 담당자(owner) 또는 관리자만
+  // 프로젝트 삭제·기간수정은 담당자(owner) 또는 관리자만
   const canDeleteProject =
     !!me && (!!me.isAdmin || project.owners.some((o) => o.user.id === me.id));
+
+  // 기간(시작·종료일) 수정/연장
+  const toDateInput = (d: string | null) => {
+    if (!d) return "";
+    const dt = new Date(d);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  };
+  const [editPeriod, setEditPeriod] = useState(false);
+  const [pStart, setPStart] = useState(toDateInput(project.startDate));
+  const [pEnd, setPEnd] = useState(toDateInput(project.endDate));
+  async function savePeriod() {
+    setBusy(true);
+    try {
+      await api.patch(`/projects/${project.id}`, {
+        startDate: pStart || undefined,
+        endDate: pEnd || undefined,
+      });
+      setEditPeriod(false);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function removeProject() {
     setBusy(true);
@@ -154,8 +177,33 @@ export default function ProjectHeader({ project }: { project: ProjectDetail }) {
           {/* 기간 · 진행률 · 참여자 */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 18px", marginTop: 14 }}>
             <div>
-              <div className="field-lbl">기간</div>
-              <div className="field-val">{fmtRange(project.startDate, project.endDate) || "—"}</div>
+              <div className="field-lbl" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                기간
+                {canDeleteProject && !editPeriod && (
+                  <button
+                    className="btn sm"
+                    style={{ padding: "1px 8px", fontSize: 11 }}
+                    onClick={() => {
+                      setPStart(toDateInput(project.startDate));
+                      setPEnd(toDateInput(project.endDate));
+                      setEditPeriod(true);
+                    }}
+                  >
+                    ✏️ 수정/연장
+                  </button>
+                )}
+              </div>
+              {editPeriod ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                  <input className="inp" type="date" value={pStart} onChange={(e) => setPStart(e.target.value)} style={{ padding: "4px 6px", fontSize: 12 }} />
+                  <span style={{ color: "var(--text-3)" }}>–</span>
+                  <input className="inp" type="date" value={pEnd} onChange={(e) => setPEnd(e.target.value)} style={{ padding: "4px 6px", fontSize: 12 }} />
+                  <button className="btn primary sm" onClick={savePeriod} disabled={busy}>저장</button>
+                  <button className="btn sm" onClick={() => setEditPeriod(false)} disabled={busy}>취소</button>
+                </div>
+              ) : (
+                <div className="field-val">{fmtRange(project.startDate, project.endDate) || "—"}</div>
+              )}
             </div>
             <div>
               <div className="field-lbl">진행률 (태스크 기준)</div>

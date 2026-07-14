@@ -100,6 +100,7 @@ function ActivityInner() {
   const [dayOffset, setDayOffset] = useState(0);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [reviewTask, setReviewTask] = useState<Task | null>(null);
+  const [evalTask, setEvalTask] = useState<Task | null>(null); // 완료 평가 읽기전용 보기
   const [endAlarm, setEndAlarm] = useState(false);
   // 내 업무 빠른 추가
   const [myAddOpen, setMyAddOpen] = useState(false);
@@ -696,7 +697,7 @@ function ActivityInner() {
           <div style={{ display: "grid", gap: 18, minWidth: 0 }}>
             {/* ▶ 현재 업무중 + ⏳ 마감 임박 — 오늘 뷰에서만 (과거/미래 뷰는 그날 기록만 표시) */}
             {dayOffset === 0 && (
-            <div className="card" style={{ borderLeft: "4px solid var(--primary)" }}>
+            <div className="card">
               <div style={{ display: "flex", padding: "12px 14px 0" }}>
                 <span className="count" style={{ marginLeft: "auto" }}>{currentTasks.length}</span>
               </div>
@@ -902,14 +903,12 @@ function ActivityInner() {
                         </span>
                       )}
                       {it.status === "paused" && (
-                        <>
-                          <span className="pill" style={{ background: "#fef3c7", color: "#a16207", fontSize: 10 }}>진행중이던 업무</span>
-                          {isSelf && (
-                            <button className="btn sm" onClick={(e) => { e.stopPropagation(); openEnd(it); }} disabled={busy === it.id}>
-                              ✓ 완료
-                            </button>
-                          )}
-                        </>
+                        <span className="pill" style={{ background: "#fef3c7", color: "#a16207", fontSize: 10 }}>진행중이던 업무</span>
+                      )}
+                      {isSelf && dayOffset === 0 && stateOf(it) !== "done" && (
+                        <button className="btn primary sm" onClick={(e) => { e.stopPropagation(); openEnd(it); }} disabled={busy === it.id}>
+                          ✓ 완료
+                        </button>
                       )}
                     </div>
                   );
@@ -1145,8 +1144,20 @@ function ActivityInner() {
                         {t.project && <span style={{ color: "var(--text-3)", fontSize: 11.5 }}>({t.project.name}) </span>}
                         {t.title}
                       </span>
+                      {statSel === "done" && t.grade && (
+                        <span className="pill" style={{ background: "#dcfce7", color: "#15803d", fontSize: 10 }}>{t.grade}</span>
+                      )}
                       {statSel === "done" && t.endedAt && (
                         <span style={{ fontSize: 11, color: "var(--text-3)" }}>{mdd(t.endedAt)}</span>
+                      )}
+                      {statSel === "done" && (
+                        <button
+                          className="btn sm"
+                          onClick={(e) => { e.stopPropagation(); setEvalTask(t); }}
+                          title="등급·AI평가 보기"
+                        >
+                          🔍 평가
+                        </button>
                       )}
                       {statSel === "overdue" && t.dueDate && (
                         <span style={{ fontSize: 11, color: "#dc2626", fontWeight: 700 }}>마감 {mdd(t.dueDate)} (D+{Math.ceil((nowMs - new Date(t.dueDate).getTime()) / 86400000)})</span>
@@ -1366,6 +1377,15 @@ function ActivityInner() {
             setReviewTask(null);
             void load();
           }}
+        />
+      )}
+
+      {/* 완료 평가 다시 보기(읽기전용) — 등급·AI평가 */}
+      {evalTask && (
+        <ReviewModal
+          task={evalTask}
+          readOnly
+          onClose={() => setEvalTask(null)}
         />
       )}
 
