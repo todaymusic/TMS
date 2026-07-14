@@ -180,7 +180,7 @@ export default function SettingsPage() {
             <div className="pill teal" style={{ width: "fit-content" }}>
               👑 관리자 모드
             </div>
-            <AdminPanel canConfigAccrual={user?.name === "마승일"} />
+            <AdminPanel isMaster={user?.name === "마승일"} />
           </div>
         )}
 

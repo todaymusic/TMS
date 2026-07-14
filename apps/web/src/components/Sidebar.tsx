@@ -22,6 +22,12 @@ const NAV = [
   { href: "/activity", icon: UserRound, label: "내 활동" },
 ] as const;
 
+// 헬로TMS 모드 메뉴(축소판) — 업무풀·내 활동만(+현황판·설정). 캘린더·프로젝트·DM 없음
+const NAV_HELLO = [
+  { href: "/dashboard", icon: LayoutDashboard, label: "업무풀" },
+  { href: "/activity", icon: UserRound, label: "내 활동" },
+] as const;
+
 const STATUSES: UserStatus[] = ["on", "away", "dnd", "off"];
 const DOT: Record<UserStatus, string> = {
   on: "#22c55e",
@@ -32,7 +38,8 @@ const DOT: Record<UserStatus, string> = {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user, logout, refresh } = useAuth();
+  const { user, logout, refresh, isSuperAdmin, viewApp, setViewApp } = useAuth();
+  const inHello = viewApp === "hellotms";
   const [menuOpen, setMenuOpen] = useState(false);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
@@ -123,13 +130,19 @@ export default function Sidebar() {
         title="현황판 — 팀 실시간 현황"
         style={{ textDecoration: "none" }}
       >
-        <div className="brand-mark">T</div>
+        <div
+          className="brand-mark"
+          style={inHello ? { background: "linear-gradient(135deg,#2dd4bf,#0d9488)" } : undefined}
+          title={inHello ? "헬로TMS 모드" : "TMS"}
+        >
+          {inHello ? "H" : "T"}
+        </div>
       </Link>
 
-      {NAV.map((n) => item(n.href, n.icon, n.label))}
+      {(inHello ? NAV_HELLO : NAV).map((n) => item(n.href, n.icon, n.label))}
 
       <div className="nav-div" />
-      {item("/dm", MessageCircle, "DM / 채팅", chatUnread)}
+      {!inHello && item("/dm", MessageCircle, "DM / 채팅", chatUnread)}
       {item("/settings", Settings, "설정")}
 
       <div className="status-box" style={{ position: "relative", marginTop: "auto" }}>
@@ -202,6 +215,50 @@ export default function Sidebar() {
                 <button className="btn sm" onClick={saveMsg} disabled={saving}>{saving ? "…" : "저장"}</button>
               </div>
             </div>
+
+            {/* 앱 모드 전환(마승일·신선중 전용) — 내 계정 그대로 그 앱으로 들어감 */}
+            {isSuperAdmin && (
+              <div style={{ borderTop: "1px solid var(--border)", padding: "8px 10px" }} onClick={(e) => e.stopPropagation()}>
+                <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 4 }}>앱 전환</div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[
+                    { v: "tms", label: "TMS", color: "#4f46e5" },
+                    { v: "hellotms", label: "헬로", color: "#14b8a6" },
+                  ].map((o) => {
+                    const active = viewApp === o.v;
+                    return (
+                      <button
+                        key={o.v}
+                        className="btn sm"
+                        onClick={() => {
+                          if (!active) {
+                            setViewApp(o.v);
+                            setMenuOpen(false);
+                            // 그 앱으로 새로 진입(모든 화면 즉시 반영)
+                            window.location.href = "/monitor";
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: "5px 0",
+                          fontSize: 12,
+                          background: active ? o.color : undefined,
+                          color: active ? "#fff" : undefined,
+                          borderColor: active ? "transparent" : undefined,
+                          cursor: active ? "default" : "pointer",
+                        }}
+                      >
+                        {o.label}
+                        {active && " ✓"}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 10.5, color: "var(--text-3)", marginTop: 4 }}>
+                  내 계정 그대로 그 앱으로 들어갑니다
+                </div>
+              </div>
+            )}
             <div
               className="status-opt"
               style={{ display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid var(--border)", padding: "9px 10px", color: "#dc2626", cursor: "pointer", fontSize: 13 }}

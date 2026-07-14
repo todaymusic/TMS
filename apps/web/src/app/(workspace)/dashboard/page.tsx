@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   api,
+  scopeUsers,
   type ProjectListItem,
   type Task,
   type User,
@@ -114,7 +115,7 @@ function DashboardInner() {
   const [who, setWho] = useState("all");
   const [month, setMonth] = useState("all");
 
-  const { user: me } = useAuth();
+  const { user: me, viewApp } = useAuth();
 
   async function load() {
     setLoading(true);
@@ -125,7 +126,7 @@ function DashboardInner() {
         api.get<Task[]>("/tasks"),
         api.get<ProjectListItem[]>("/projects"),
       ]);
-      setUsers(u);
+      setUsers(scopeUsers(u, viewApp));
       setTasks(t);
       setProjects(p);
     } catch (e) {

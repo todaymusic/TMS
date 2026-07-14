@@ -15,7 +15,17 @@ type AuthCtx = {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
+  // 계정 앱 분리(tms/hellotms)
+  homeApp: string; // 이 웹/계정의 기본 앱
+  isSuperAdmin: boolean; // 마승일·신선중 = 두 앱 모드 전환 가능
+  viewApp: string; // 현재 들어가 있는 앱: "tms" | "hellotms" (계정은 그대로)
+  setViewApp: (app: string) => void; // 앱 모드 전환(마승일 그대로 그 앱으로 들어감)
 };
+
+// 이 웹이 어느 앱인지(env). tms 웹=tms, hello 웹=hellotms
+const HOME_APP = process.env.NEXT_PUBLIC_APP ?? "tms";
+// 두 앱 전체를 볼 수 있는 대표 계정(이름 기준)
+const SUPER_ADMINS = ["마승일", "신선중"];
 
 const Ctx = createContext<AuthCtx>({
   user: null,
@@ -23,6 +33,10 @@ const Ctx = createContext<AuthCtx>({
   login: async () => {},
   logout: () => {},
   refresh: async () => {},
+  homeApp: HOME_APP,
+  isSuperAdmin: false,
+  viewApp: HOME_APP,
+  setViewApp: () => {},
 });
 
 const COOKIE_MAXAGE = 60 * 60 * 24 * 30; // 30일
@@ -30,6 +44,30 @@ const COOKIE_MAXAGE = 60 * 60 * 24 * 30; // 30일
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const isSuperAdmin = !!user && SUPER_ADMINS.includes(user.name);
+  const ownApp = user?.app ?? HOME_APP;
+
+  // 대표(마승일·신선중)만 앱 모드를 바꿀 수 있고, 그 값을 저장/복원
+  const [viewAppState, setViewAppState] = useState<string>(HOME_APP);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("tms_viewapp");
+      if (saved) setViewAppState(saved);
+    } catch {
+      /* noop */
+    }
+  }, []);
+  const setViewApp = (a: string) => {
+    setViewAppState(a);
+    try {
+      localStorage.setItem("tms_viewapp", a);
+    } catch {
+      /* noop */
+    }
+  };
+  // 대표가 아니면 항상 자기 계정의 앱. 대표면 선택한 앱 모드로 들어감(계정은 그대로).
+  const viewApp = isSuperAdmin ? viewAppState : ownApp;
 
   useEffect(() => {
     // 캐시된 사용자로 즉시 복원
@@ -102,7 +140,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <Ctx.Provider value={{ user, loading, login, logout, refresh }}>
+    <Ctx.Provider
+      value={{ user, loading, login, logout, refresh, homeApp: HOME_APP, isSuperAdmin, viewApp, setViewApp }}
+    >
       {children}
     </Ctx.Provider>
   );

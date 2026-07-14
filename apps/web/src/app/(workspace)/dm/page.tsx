@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   api,
+  scopeUsers,
   type ChatChannel,
   type ChatMessage,
   type User,
@@ -25,7 +26,7 @@ function timeAgo(d: string) {
 }
 
 export default function DmPage() {
-  const { user: me } = useAuth();
+  const { user: me, viewApp } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [channels, setChannels] = useState<ChatChannel[]>([]);
   const [selId, setSelId] = useState<string | null>(null);
@@ -50,7 +51,7 @@ export default function DmPage() {
   }
   useEffect(() => {
     if (!me) return;
-    api.get<User[]>("/users").then(setUsers).catch(() => {});
+    api.get<User[]>("/users").then((u) => setUsers(scopeUsers(u, viewApp))).catch(() => {});
     void loadChannels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me]);

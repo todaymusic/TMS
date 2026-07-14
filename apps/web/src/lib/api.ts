@@ -242,11 +242,19 @@ export type User = {
   lastSeenAt?: string | null;
   clockedOut?: boolean;
   isAdmin?: boolean;
+  disabled?: boolean;
+  app?: string; // 소속 앱: "tms" | "hellotms"
   leaveBalance?: number;
   monthlyLeaveGrant?: number;
   workStart?: string | null;
   workEnd?: string | null;
 };
+
+// 계정 목록을 현재 보기 앱(viewApp)으로 필터. "all"이면 전체(슈퍼관리자 전용).
+export function scopeUsers<T extends { app?: string }>(users: T[], viewApp: string): T[] {
+  if (viewApp === "all") return users;
+  return users.filter((u) => (u.app ?? "tms") === viewApp);
+}
 
 // SPEC: 진행률 경과별 색상 코딩 (0⚪ / ~25🔴 / ~50🟠 / ~75🟡 / ~99🔵 / 100🟢)
 export function progressColor(pct: number): string {

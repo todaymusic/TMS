@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, type Member, type User } from "@/lib/api";
+import { api, scopeUsers, type Member, type User } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 const ROLES: { key: string; label: string }[] = [
   { key: "lead", label: "리드" },
@@ -20,6 +21,7 @@ export default function MembersEditor({
   participants: Member[];
 }) {
   const router = useRouter();
+  const { viewApp } = useAuth();
   const [open, setOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [busy, setBusy] = useState(false);
@@ -27,7 +29,7 @@ export default function MembersEditor({
 
   useEffect(() => {
     if (open && users.length === 0) {
-      api.get<User[]>("/users").then(setUsers).catch(() => {});
+      api.get<User[]>("/users").then((u) => setUsers(scopeUsers(u, viewApp))).catch(() => {});
     }
   }, [open, users.length]);
 

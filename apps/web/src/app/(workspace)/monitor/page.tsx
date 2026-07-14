@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, progressColor, type ProjectListItem, type Task, type User } from "@/lib/api";
+import { api, progressColor, scopeUsers, type ProjectListItem, type Task, type User } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 export default function MonitorPage() {
   const router = useRouter();
+  const { viewApp } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
@@ -61,7 +63,9 @@ export default function MonitorPage() {
     if (task) return { label: "진행중", dot: "#22c55e", sub: task.title };
     return { label: "대기 중", dot: "#22c55e", sub: msg };
   };
-  const onlineCount = users.filter(isOnline).length;
+  // 현재 보기 앱(tms/hello)으로 팀원 필터
+  const scoped = scopeUsers(users, viewApp);
+  const onlineCount = scoped.filter(isOnline).length;
 
   // 검색: 프로젝트명 / 태스크 제목·업무영역
   const search = useMemo(() => {
@@ -162,7 +166,7 @@ export default function MonitorPage() {
           <div className="team-grid">
             {loading && <div style={{ color: "var(--text-3)", fontSize: 13 }}>불러오는 중…</div>}
             {!loading &&
-              users.map((m) => {
+              scoped.map((m) => {
                 const p = presenceOf(m);
                 const task = p.label === "진행중" ? doingByUser.get(m.id) : undefined;
                 const pct = task?.progress ?? 0;
