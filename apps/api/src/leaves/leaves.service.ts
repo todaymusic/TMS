@@ -6,6 +6,7 @@ import {
 import { LeaveStatus, LeaveType } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLeaveDto } from './dto/create-leave.dto';
+import { UpdateLeaveDto } from './dto/update-leave.dto';
 import { UpdateLeaveStatusDto } from './dto/update-leave-status.dto';
 
 // 종류별 연차 차감(일): 연차 1 / 반차 0.5 / 반반차 0.25 / 병가·기타 0
@@ -15,6 +16,7 @@ const DEDUCT: Record<LeaveType, number> = {
   quarter: 0.25,
   sick: 0,
   etc: 0,
+  business_trip: 0,
 };
 
 @Injectable()
@@ -22,6 +24,8 @@ export class LeavesService {
   constructor(private readonly prisma: PrismaService) {}
 
   create(dto: CreateLeaveDto) {
+    // 출장은 연차 차감이 없고 승인 절차 없이 바로 확정(자동 승인)
+    const isTrip = dto.type === LeaveType.business_trip;
     return this.prisma.leave.create({
       data: {
         userId: dto.userId,
@@ -29,7 +33,29 @@ export class LeavesService {
         startDate: new Date(dto.startDate),
         endDate: new Date(dto.endDate),
         reason: dto.reason,
-        status: LeaveStatus.requested,
+        daypart: dto.daypart ?? null,
+        status: isTrip ? LeaveStatus.approved : LeaveStatus.requested,
+      },
+    });
+  }
+
+  // 내용 수정(날짜·사유·반일). 종류/상태는 건드리지 않아 연차 차감에 영향 없음.
+  async update(id: string, dto: UpdateLeaveDto) {
+    const leave = await this.prisma.leave.findUnique({ where: { id } });
+    if (!leave) throw new NotFoundException(`Leave ${id} not found`);
+    const dp =
+      dto.daypart === undefined
+        ? undefined
+        : dto.daypart === 'am' || dto.daypart === 'pm'
+          ? dto.daypart
+          : null;
+    return this.prisma.leave.update({
+      where: { id },
+      data: {
+        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+        endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+        reason: dto.reason,
+        daypart: dp,
       },
     });
   }

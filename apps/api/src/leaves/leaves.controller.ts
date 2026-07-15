@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { LeaveStatus } from '../../generated/prisma/enums';
 import { CreateLeaveDto } from './dto/create-leave.dto';
+import { UpdateLeaveDto } from './dto/update-leave.dto';
 import { UpdateLeaveStatusDto } from './dto/update-leave-status.dto';
 import { LeavesService } from './leaves.service';
 
@@ -46,6 +47,12 @@ export class LeavesController {
   @Patch(':id/deny-cancel')
   denyCancel(@Param('id') id: string) {
     return this.leaves.denyCancel(id);
+  }
+
+  // 본인: 출장 등 내용 수정(날짜·사유·반일)
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateLeaveDto) {
+    return this.leaves.update(id, dto);
   }
 
   @Delete(':id')

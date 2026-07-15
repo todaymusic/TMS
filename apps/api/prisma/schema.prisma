@@ -61,6 +61,7 @@ enum LeaveType {
   quarter // 반반차 (-0.25)
   sick // 병가
   etc // 기타
+  business_trip // 출장 (차감 없음, 자동 승인)
 }
 
 enum LeaveStatus {
@@ -321,6 +322,7 @@ model Leave {
   startDate       DateTime
   endDate         DateTime
   reason          String?
+  daypart         String? // 반일(출장 등) 오전/오후: "am" | "pm" | null(종일)
   status          LeaveStatus @default(requested)
   cancelRequested Boolean     @default(false) // 승인된 휴가 취소 요청(관리자 확인 대기)
   createdAt       DateTime    @default(now())
