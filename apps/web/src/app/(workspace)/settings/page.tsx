@@ -11,6 +11,7 @@ const LEAVE_LABEL: Record<LeaveType, string> = {
   quarter: "반반차",
   sick: "병가",
   etc: "기타",
+  business_trip: "출장",
 };
 const STATUS_KO = {
   requested: "신청됨",
@@ -63,6 +64,7 @@ export default function SettingsPage() {
   // 휴가
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [lvType, setLvType] = useState<LeaveType>("annual");
+  const [lvDaypart, setLvDaypart] = useState<"" | "am" | "pm">(""); // 출장 반일(오전/오후)
   const [lvStart, setLvStart] = useState("");
   const [lvEnd, setLvEnd] = useState("");
   const [lvReason, setLvReason] = useState("");
@@ -153,11 +155,13 @@ export default function SettingsPage() {
         startDate: lvStart,
         endDate: lvEnd,
         reason: lvReason.trim() || undefined,
+        daypart: lvType === "business_trip" && lvDaypart ? lvDaypart : undefined,
       });
-      setLvMsg("✅ 휴가를 신청했습니다");
+      setLvMsg(lvType === "business_trip" ? "✅ 출장을 등록했습니다" : "✅ 휴가를 신청했습니다");
       setLvStart("");
       setLvEnd("");
       setLvReason("");
+      setLvDaypart("");
       await loadLeaves();
     } catch (e) {
       setLvMsg(e instanceof Error ? e.message : "신청 실패");
@@ -202,7 +206,20 @@ export default function SettingsPage() {
                 <option value="quarter">반반차 (−0.25)</option>
                 <option value="sick">병가</option>
                 <option value="etc">기타</option>
+                <option value="business_trip">✈️ 출장 (차감 없음)</option>
               </select>
+              {lvType === "business_trip" && (
+                <select
+                  className="inp"
+                  value={lvDaypart}
+                  onChange={(e) => setLvDaypart(e.target.value as "" | "am" | "pm")}
+                  style={{ marginTop: 6 }}
+                >
+                  <option value="">종일</option>
+                  <option value="am">오전 반일</option>
+                  <option value="pm">오후 반일</option>
+                </select>
+              )}
             </div>
             <div>
               <label>사유 (선택)</label>
@@ -223,10 +240,12 @@ export default function SettingsPage() {
             </div>
           )}
           <button className="btn primary" onClick={requestLeave} disabled={lvBusy}>
-            {lvBusy ? "신청 중…" : "휴가 신청"}
+            {lvBusy ? "처리 중…" : lvType === "business_trip" ? "출장 등록" : "휴가 신청"}
           </button>
           <div className="hint" style={{ marginTop: 6 }}>
-            관리자 승인 시 종류별로 잔여 연차에서 자동 차감됩니다.
+            {lvType === "business_trip"
+              ? "출장은 승인 없이 바로 캘린더에 등록되며, 연차 차감이 없습니다."
+              : "관리자 승인 시 종류별로 잔여 연차에서 자동 차감됩니다."}
           </div>
 
           <div style={{ marginTop: 16, display: "grid", gap: 8 }}>

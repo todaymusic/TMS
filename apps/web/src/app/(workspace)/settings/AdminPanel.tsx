@@ -10,6 +10,7 @@ const LEAVE_LABEL: Record<LeaveType, string> = {
   quarter: "반반차",
   sick: "병가",
   etc: "기타",
+  business_trip: "출장",
 };
 const STATUS_KO = { requested: "신청됨", approved: "승인", rejected: "반려" } as const;
 

@@ -10,6 +10,7 @@ import {
   type Task,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useBackdropClose } from "@/lib/useBackdropClose";
 import { MeetingCreateModal, MeetingDetailModal } from "./MeetingModals";
 
 const DOWS = ["월", "화", "수", "목", "금", "토", "일"];
@@ -22,7 +23,12 @@ const LEAVE_LABEL: Record<LeaveType, string> = {
   quarter: "반반차",
   sick: "병가",
   etc: "기타",
+  business_trip: "출장",
 };
+
+function daypartLabel(dp?: "am" | "pm" | null): string {
+  return dp === "am" ? " (오전)" : dp === "pm" ? " (오후)" : "";
+}
 // 상태별 색 (승인=초록 / 신청=노랑 / 반려=회색)
 function leaveStyle(s: Leave["status"]): React.CSSProperties {
   if (s === "approved") return { background: "#dcfce7", color: "#15803d" };
@@ -31,6 +37,14 @@ function leaveStyle(s: Leave["status"]): React.CSSProperties {
 }
 
 const GANTT_COLORS = ["#4f46e5", "#0f766e", "#db2777", "#ea580c", "#0891b2"];
+
+const TRIP_LBL: React.CSSProperties = {
+  display: "block",
+  fontSize: 12,
+  fontWeight: 600,
+  color: "var(--text-2)",
+  marginBottom: 6,
+};
 
 export default function CalendarPage() {
   const { user: me } = useAuth();
@@ -43,6 +57,22 @@ export default function CalendarPage() {
   const [q, setQ] = useState("");
   const [meetCreate, setMeetCreate] = useState(false);
   const [meetSel, setMeetSel] = useState<Meeting | null>(null);
+
+  // 출장 추가 (근무 탭에서 바로 등록)
+  const [tripOpen, setTripOpen] = useState(false);
+  const [tripStart, setTripStart] = useState("");
+  const [tripEnd, setTripEnd] = useState("");
+  const [tripDaypart, setTripDaypart] = useState<"" | "am" | "pm">("");
+  const [tripReason, setTripReason] = useState("");
+  const [tripBusy, setTripBusy] = useState(false);
+  const [tripMsg, setTripMsg] = useState<string | null>(null);
+  const [editTripId, setEditTripId] = useState<string | null>(null); // null=추가, id=수정
+  const tripBackdrop = useBackdropClose({
+    isDirty: () => tripStart !== "" || tripEnd !== "" || tripReason.trim() !== "",
+    close: () => closeTrip(),
+    busy: tripBusy,
+    resetKey: tripOpen,
+  });
 
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -69,6 +99,83 @@ export default function CalendarPage() {
       setSyncMsg(e instanceof Error ? e.message.replace(/^API.*?→\s*\d+\s*/, "") : "동기화 실패");
     } finally {
       setSyncing(false);
+    }
+  }
+  async function loadLeaves() {
+    try {
+      setLeaves(await api.get<LeaveCal[]>("/leaves"));
+    } catch {
+      /* noop */
+    }
+  }
+  function closeTrip() {
+    setTripOpen(false);
+    setEditTripId(null);
+    setTripStart("");
+    setTripEnd("");
+    setTripDaypart("");
+    setTripReason("");
+    setTripMsg(null);
+  }
+  function openAddTrip() {
+    closeTrip();
+    setTripOpen(true);
+  }
+  function openEditTrip(lv: LeaveCal) {
+    setEditTripId(lv.id);
+    setTripStart(lv.startDate.slice(0, 10));
+    setTripEnd(lv.endDate.slice(0, 10));
+    setTripDaypart((lv.daypart as "am" | "pm" | null) ?? "");
+    setTripReason(lv.reason ?? "");
+    setTripMsg(null);
+    setTripOpen(true);
+  }
+  async function saveTrip() {
+    setTripMsg(null);
+    if (!me) return;
+    if (!tripStart || !tripEnd) {
+      setTripMsg("시작일과 종료일을 입력하세요");
+      return;
+    }
+    setTripBusy(true);
+    try {
+      if (editTripId) {
+        await api.patch(`/leaves/${editTripId}`, {
+          startDate: tripStart,
+          endDate: tripEnd,
+          reason: tripReason.trim() || undefined,
+          daypart: tripDaypart || null,
+        });
+      } else {
+        await api.post("/leaves", {
+          userId: me.id,
+          type: "business_trip",
+          startDate: tripStart,
+          endDate: tripEnd,
+          reason: tripReason.trim() || undefined,
+          daypart: tripDaypart || undefined,
+        });
+      }
+      closeTrip();
+      await loadLeaves();
+    } catch (e) {
+      setTripMsg(e instanceof Error ? e.message : "저장 실패");
+    } finally {
+      setTripBusy(false);
+    }
+  }
+  async function deleteTrip() {
+    if (!editTripId) return;
+    if (!window.confirm("이 출장을 삭제할까요?")) return;
+    setTripBusy(true);
+    try {
+      await api.del(`/leaves/${editTripId}`);
+      closeTrip();
+      await loadLeaves();
+    } catch (e) {
+      setTripMsg(e instanceof Error ? e.message : "삭제 실패");
+    } finally {
+      setTripBusy(false);
     }
   }
   // 표시 월 — 현재 월을 기본으로 (m: 0-based)
@@ -260,9 +367,12 @@ export default function CalendarPage() {
               </button>
             </span>
           ) : (
-            <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-3)" }}>
-              연차·휴가 기간 표시
-            </div>
+            <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: "var(--text-3)" }}>연차·휴가·출장 표시</span>
+              <button className="btn primary sm" onClick={openAddTrip}>
+                ✈️ 출장 추가
+              </button>
+            </span>
           )}
         </div>
 
@@ -306,11 +416,26 @@ export default function CalendarPage() {
                     );
                   })}
                 {tab === "work" &&
-                  c.leaves.map((lv) => (
-                    <div key={lv.id} className="cal-ev" style={leaveStyle(lv.status)}>
-                      {lv.user.name} {LEAVE_LABEL[lv.type]}
-                    </div>
-                  ))}
+                  c.leaves.map((lv) => {
+                    const isTrip = lv.type === "business_trip";
+                    const canEdit = isTrip && lv.user.id === me?.id;
+                    return (
+                      <div
+                        key={lv.id}
+                        className="cal-ev"
+                        onClick={canEdit ? () => openEditTrip(lv) : undefined}
+                        title={canEdit ? "클릭하면 수정/삭제" : undefined}
+                        style={{
+                          ...(isTrip ? { background: "#dbeafe", color: "#1d4ed8" } : leaveStyle(lv.status)),
+                          ...(canEdit ? { cursor: "pointer" } : {}),
+                        }}
+                      >
+                        {isTrip ? "✈️ " : ""}
+                        {lv.user.name} {LEAVE_LABEL[lv.type]}
+                        {daypartLabel(lv.daypart)}
+                      </div>
+                    );
+                  })}
                 {tab === "meeting" &&
                   c.meetings.map((mt) => (
                     <div
@@ -382,6 +507,59 @@ export default function CalendarPage() {
           onClose={() => setMeetSel(null)}
           onChanged={loadMeetings}
         />
+      )}
+      {tripOpen && (
+        <div
+          {...tripBackdrop}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", zIndex: 60, padding: 20 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: "100%", maxWidth: 420, padding: 22 }}>
+            <div className="sec-title" style={{ marginBottom: 14 }}>
+              <span className="em">✈️</span> {editTripId ? "출장 수정" : "출장 추가"}
+            </div>
+            <div style={{ display: "grid", gap: 12 }}>
+              <div>
+                <label style={TRIP_LBL}>구분</label>
+                <select className="inp" value={tripDaypart} onChange={(e) => setTripDaypart(e.target.value as "" | "am" | "pm")}>
+                  <option value="">종일</option>
+                  <option value="am">오전 반일</option>
+                  <option value="pm">오후 반일</option>
+                </select>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={TRIP_LBL}>시작일</label>
+                  <input className="inp" type="date" value={tripStart} onChange={(e) => setTripStart(e.target.value)} />
+                </div>
+                <div>
+                  <label style={TRIP_LBL}>종료일</label>
+                  <input className="inp" type="date" value={tripEnd} onChange={(e) => setTripEnd(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label style={TRIP_LBL}>사유 (선택)</label>
+                <input className="inp" value={tripReason} onChange={(e) => setTripReason(e.target.value)} placeholder="예: 양재 클라이언트 미팅" />
+              </div>
+            </div>
+            {tripMsg && <div style={{ color: "#dc2626", fontSize: 12, marginTop: 8 }}>{tripMsg}</div>}
+            {!editTripId && (
+              <div style={{ fontSize: 11.5, color: "#2563eb", marginTop: 8 }}>
+                출장은 승인 없이 바로 등록되고, 연차 차감이 없어요.
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              {editTripId && (
+                <button className="btn" style={{ color: "#dc2626" }} onClick={deleteTrip} disabled={tripBusy}>
+                  삭제
+                </button>
+              )}
+              <button className="btn" style={{ flex: 1 }} onClick={closeTrip} disabled={tripBusy}>취소</button>
+              <button className="btn primary" style={{ flex: 1 }} onClick={saveTrip} disabled={tripBusy}>
+                {tripBusy ? "저장 중…" : editTripId ? "수정 저장" : "출장 등록"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

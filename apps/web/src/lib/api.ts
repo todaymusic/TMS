@@ -216,7 +216,7 @@ export type Message = {
   user: UserBrief;
 };
 
-export type LeaveType = "annual" | "half" | "quarter" | "sick" | "etc";
+export type LeaveType = "annual" | "half" | "quarter" | "sick" | "etc" | "business_trip";
 export type LeaveStatus = "requested" | "approved" | "rejected";
 
 export type Leave = {
@@ -227,6 +227,7 @@ export type Leave = {
   reason: string | null;
   status: LeaveStatus;
   cancelRequested?: boolean;
+  daypart?: "am" | "pm" | null; // 반일(출장 등) 오전/오후. null=종일
   createdAt: string;
 };
 
