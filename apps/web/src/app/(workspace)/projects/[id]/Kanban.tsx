@@ -142,6 +142,14 @@ export default function Kanban({
                       {PRI[t.priority].label}
                     </span>
                     {t.dueDate && <span className="dd">{md(t.dueDate)}</span>}
+                    {t.assignee && (
+                      <span
+                        style={{ marginLeft: t.dueDate ? undefined : "auto", color: "var(--text-3)", fontSize: 11 }}
+                        title="담당자"
+                      >
+                        {t.assignee.name}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
