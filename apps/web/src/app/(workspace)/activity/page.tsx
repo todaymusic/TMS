@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { api, progressColor, type Leave, type Priority, type Task, type User } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useBackdropClose } from "@/lib/useBackdropClose";
 import TaskDetailModal from "@/components/TaskDetailModal";
 import TaskDocModal from "@/components/TaskDocModal";
 import ScheduleBoard from "@/components/ScheduleBoard";
@@ -96,6 +97,13 @@ function ActivityInner() {
   const [endVideo, setEndVideo] = useState("");
   const [endNote, setEndNote] = useState("");
   const [endBusy, setEndBusy] = useState(false);
+  // 업무 종료 모달 배경 클릭 보호: 링크·메모 작성 중이면 확인
+  const endBackdrop = useBackdropClose({
+    isDirty: () => endNote.trim() !== "" || endReport.trim() !== "" || endVideo.trim() !== "",
+    close: () => setEndTask(null),
+    busy: endBusy,
+    resetKey: endTask?.id,
+  });
   // 날짜 이동(어제/오늘/내일) · 상세 모달 · 퇴근 알림
   const [dayOffset, setDayOffset] = useState(0);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -1273,7 +1281,7 @@ function ActivityInner() {
 
       {endTask && (
         <div
-          onClick={() => !endBusy && setEndTask(null)}
+          {...endBackdrop}
           style={{
             position: "fixed",
             inset: 0,

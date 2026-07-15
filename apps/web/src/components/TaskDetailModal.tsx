@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, type Priority, type TaskDetail, type TaskStatus } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useBackdropClose } from "@/lib/useBackdropClose";
 
 const PRI_LABEL: Record<Priority, string> = {
   urgent: "긴급",
@@ -100,6 +101,24 @@ export default function TaskDetailModal({
   const [doc, setDoc] = useState("");
   const [reportLink, setReportLink] = useState("");
   const [videoLink, setVideoLink] = useState("");
+
+  // 배경 클릭 닫기 보호: 저장 안 한 변경이 있으면 확인
+  const backdrop = useBackdropClose({
+    isDirty: () =>
+      !!task &&
+      (title !== task.title ||
+        priority !== task.priority ||
+        status !== task.status ||
+        dueDate !== (task.dueDate ? task.dueDate.slice(0, 10) : "") ||
+        progress !== task.progress ||
+        memo !== (task.statusMemo ?? "") ||
+        description !== (task.description ?? "") ||
+        doc !== (task.aiDescriptionDoc ?? "") ||
+        reportLink !== (task.reportLink ?? "") ||
+        videoLink !== (task.videoLink ?? "")),
+    close: onClose,
+    busy,
+  });
 
   useEffect(() => {
     (async () => {
@@ -245,7 +264,7 @@ export default function TaskDetailModal({
       </div>
     )}
     <div
-      onClick={() => !busy && onClose()}
+      {...backdrop}
       style={{
         position: "fixed",
         inset: 0,

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type Task } from "@/lib/api";
+import { useBackdropClose } from "@/lib/useBackdropClose";
 
 const GRADES = ["우수", "양호", "보완"] as const;
 
@@ -25,6 +26,11 @@ export default function ReviewModal({
   const [reworking, setReworking] = useState(false);
   const [reason, setReason] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const backdrop = useBackdropClose({
+    isDirty: () => reworking && reason.trim() !== "",
+    close: onClose,
+    busy,
+  });
 
   useEffect(() => {
     // 읽기전용 + 저장된 평가 있음 → API 호출(재생성) 안 함
@@ -75,7 +81,7 @@ export default function ReviewModal({
   const link = task.reportLink || task.videoLink;
 
   return (
-    <div onClick={() => !busy && onClose()} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", zIndex: 55, padding: 20 }}>
+    <div {...backdrop} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", zIndex: 55, padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: "100%", maxWidth: 520, maxHeight: "90vh", overflow: "auto", padding: 22 }}>
         <div className="sec-title mb16">
           <span className="em">🔍</span> {readOnly ? "완료 평가" : "업무 검수"} — {task.title}

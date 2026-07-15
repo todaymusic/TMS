@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, progressColor, type Task } from "@/lib/api";
+import { useBackdropClose } from "@/lib/useBackdropClose";
 
 export function dailyKey(userId: string, dateKey: string) {
   return `tms_daily_${userId}_${dateKey}`;
@@ -27,6 +28,19 @@ export default function EndDayModal({
   const [daily, setDaily] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // 배경 클릭 닫기 보호: 리포트/메모 작성 중이면 확인
+  const initialMemos = useRef(
+    JSON.stringify(Object.fromEntries(tasks.map((t) => [t.id, t.statusMemo ?? ""]))),
+  );
+  const backdrop = useBackdropClose({
+    isDirty: () =>
+      daily.trim() !== "" ||
+      JSON.stringify(Object.fromEntries(tasks.map((t) => [t.id, reports[t.id]?.memo ?? ""]))) !==
+        initialMemos.current,
+    close: onClose,
+    busy,
+  });
 
   function setReport(id: string, patch: Partial<{ progress: number; memo: string }>) {
     setReports((cur) => ({ ...cur, [id]: { ...cur[id], ...patch } }));
@@ -86,7 +100,7 @@ export default function EndDayModal({
 
   return (
     <div
-      onClick={() => !busy && onClose()}
+      {...backdrop}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "start center", zIndex: 60, padding: "24px 16px", overflow: "auto" }}
     >
       <div
