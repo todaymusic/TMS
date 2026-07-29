@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { ChatModule } from './chat/chat.module';
 import { LeavesModule } from './leaves/leaves.module';
 import { MeetingsModule } from './meetings/meetings.module';
+import { MemosModule } from './memos/memos.module';
 import { MessagesModule } from './messages/messages.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -38,6 +39,7 @@ import { WorkLogsModule } from './worklogs/worklogs.module';
     ChatModule,
     ScheduleModule,
     MeetingsModule,
+    MemosModule,
     PushModule,
   ],
   controllers: [AppController],

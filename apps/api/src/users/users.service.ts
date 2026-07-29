@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,8 +10,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
-// 응답에서 비밀번호 해시 제외
-const omitPassword = { password: true } as const;
+// 응답에서 비밀번호 해시 + 사원번호(로그인 코드) 제외
+const omitPassword = { password: true, employeeCode: true } as const;
+
+// P2002(유니크 충돌)가 사원번호 때문인지 이메일 때문인지 구분 — 구 TMS 문구는 그대로 유지
+function conflictMessage(e: unknown) {
+  const target = (e as { meta?: { target?: unknown } }).meta?.target;
+  const hit = Array.isArray(target)
+    ? target.includes('employeeCode')
+    : String(target ?? '').includes('employeeCode');
+  return hit ? '이미 사용 중인 사원번호입니다' : '이미 사용 중인 이메일입니다';
+}
 
 @Injectable()
 export class UsersService {
@@ -27,7 +37,49 @@ export class UsersService {
       return await this.prisma.user.create({ data, omit: omitPassword });
     } catch (e) {
       if ((e as { code?: string }).code === 'P2002') {
-        throw new ConflictException('이미 사용 중인 이메일입니다');
+        throw new ConflictException(conflictMessage(e));
+      }
+      throw e;
+    }
+  }
+
+  /** 관리자 확인 — 사원번호 조회/변경 등 민감 작업용 */
+  private async assertAdmin(requesterId: string) {
+    const me = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      select: { isAdmin: true },
+    });
+    if (!me?.isAdmin) throw new ForbiddenException('Admin only');
+  }
+
+  /** 전 멤버 사원번호(로그인 코드) 목록 — 관리자 전용 */
+  async listCodes(requesterId: string) {
+    await this.assertAdmin(requesterId);
+    return this.prisma.user.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, employeeCode: true },
+    });
+  }
+
+  /** 사원번호(로그인 코드) 기입/변경 — 관리자 전용 */
+  async setEmployeeCode(requesterId: string, userId: string, codeRaw: string) {
+    await this.assertAdmin(requesterId);
+    const employeeCode = codeRaw.trim().toUpperCase();
+    if (!/^[A-Z0-9]{6,12}$/.test(employeeCode)) {
+      throw new ConflictException(
+        'employeeCode must be 6-12 uppercase letters/digits',
+      );
+    }
+    await this.findOne(userId);
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { employeeCode },
+      });
+      return { ok: true };
+    } catch (e) {
+      if ((e as { code?: string }).code === 'P2002') {
+        throw new ConflictException('Employee code already in use');
       }
       throw e;
     }
@@ -68,7 +120,7 @@ export class UsersService {
       });
     } catch (e) {
       if ((e as { code?: string }).code === 'P2002') {
-        throw new ConflictException('이미 사용 중인 이메일입니다');
+        throw new ConflictException(conflictMessage(e));
       }
       throw e;
     }

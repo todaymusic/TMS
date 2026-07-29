@@ -75,7 +75,8 @@ model User {
   id            String     @id @default(cuid())
   email         String     @unique
   name          String
-  password      String? // bcrypt 해시 (이메일+비번 로그인). 기존 행은 null 허용
+  password      String? // bcrypt 해시 (구 이메일+비번 로그인 호환). 기존 행은 null 허용
+  employeeCode  String?    @unique // 사원번호(로그인 코드) — 관리자가 설정에서 기입/발급. 응답에서 항상 제외
   isAdmin       Boolean    @default(false) // 슈퍼유저(관리자) 권한
   disabled      Boolean    @default(false) // 계정 비활성화(로그인 차단) — 마승일이 관리
   app           String     @default("tms") // 소속 앱: "tms" | "hellotms" (계정 만든 앱 기준)
@@ -109,6 +110,20 @@ model User {
   channelMessages    ChannelMessage[]
   scheduleBlocks    ScheduleBlock[]
   dailyReports      DailyReport[]
+  memos             Memo[]
+}
+
+// hellotms 메모(스티커 노트) — 개인 전용 다중 노트. 구 TMS 포스트잇(User.scratchMemo)과 완전 독립
+model Memo {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String   @default("")
+  color     String   @default("yellow") // yellow | green | blue | pink | purple | gray
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // 데일리 리포트 / AI 평가 — 업무 종료 시 저장(사용자·날짜당 1개), 지난일 조회에 표시(서버 보관)

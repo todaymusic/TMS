@@ -18,6 +18,7 @@ async function main() {
       update: {},
       create: {
         email: 'hana@tms.dev',
+        employeeCode: 'HANA2026',
         name: '김하나',
         dept: '콘텐츠팀',
         role: '팀장',
@@ -31,6 +32,7 @@ async function main() {
       update: {},
       create: {
         email: 'jisoo@tms.dev',
+        employeeCode: 'JISOO2026',
         name: '박지수',
         dept: '디자인팀',
         role: '디자이너',
@@ -43,6 +45,7 @@ async function main() {
       update: {},
       create: {
         email: 'minho@tms.dev',
+        employeeCode: 'MINHO2026',
         name: '이민호',
         dept: '개발팀',
         role: '개발자',
@@ -55,6 +58,7 @@ async function main() {
       update: {},
       create: {
         email: 'yuna@tms.dev',
+        employeeCode: 'YUNA2026',
         name: '최유나',
         dept: '마케팅팀',
         role: '마케터',

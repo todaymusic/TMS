@@ -2,8 +2,10 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -25,6 +27,13 @@ class LoginDto {
   @IsString()
   @MinLength(4)
   password!: string;
+}
+
+class LoginCodeDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(32)
+  code!: string;
 }
 
 class SetPasswordDto {
@@ -61,9 +70,23 @@ class SwitchAppDto {
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
+  // 구 이메일+비밀번호 로그인 — 기존 TMS 프론트 호환용으로 유지(hellotms UI에서는 미사용)
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto.email, dto.password);
+  }
+
+  // 사원번호 부트스트랩 — 브라우저로 여는 1회용 발급/조회 페이지 (BOOTSTRAP_SECRET 설정 시에만)
+  @Get('bootstrap-codes')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  bootstrapCodes(@Query('key') key: string | undefined, @Req() req: Request) {
+    return this.auth.bootstrapCodes(key ?? '', req.ip ?? 'unknown');
+  }
+
+  // 사원번호(코드) 로그인 — hellotms 기본 로그인
+  @Post('login-code')
+  loginCode(@Body() dto: LoginCodeDto, @Req() req: Request) {
+    return this.auth.loginWithCode(dto.code, req.ip ?? 'unknown');
   }
 
   // 최초 비밀번호 설정(비번 없는 사용자만)

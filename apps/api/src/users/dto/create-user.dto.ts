@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
@@ -6,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
 } from 'class-validator';
 import { UserStatus } from '../../../generated/prisma/enums';
 
@@ -67,4 +69,14 @@ export class CreateUserDto {
   @IsOptional()
   @IsNumber()
   monthlyLeaveGrant?: number;
+
+  // 사원번호(로그인 코드) — 관리자 계정 생성 시 함께 발급
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : (value as string),
+  )
+  @Matches(/^[A-Z0-9]{6,12}$/, {
+    message: 'employeeCode must be 6-12 uppercase letters/digits',
+  })
+  employeeCode?: string;
 }
