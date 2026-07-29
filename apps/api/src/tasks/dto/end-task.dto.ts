@@ -15,5 +15,9 @@ export class EndTaskDto {
 
   @IsOptional()
   @IsString()
+  workflowLink?: string;
+
+  @IsOptional()
+  @IsString()
   note?: string;
 }

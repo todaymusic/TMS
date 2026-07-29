@@ -113,6 +113,14 @@ model User {
   memos             Memo[]
 }
 
+// hellotms 소분류(업무 영역) — hellotms 대시보드에서 관리(추가/수정/삭제). 최초 조회 시 기본값 시드
+model Subcategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 // hellotms 메모(스티커 노트) — 개인 전용 다중 노트. 구 TMS 포스트잇(User.scratchMemo)과 완전 독립
 model Memo {
   id        String   @id @default(cuid())
@@ -237,8 +245,10 @@ model Task {
   // 산출물 요구 (taskType = report/video/both/none 의 boolean 표현)
   reportRequired Boolean @default(false)
   videoRequired  Boolean @default(false)
+  workflowRequired Boolean @default(false) // v1.5: 워크플로우 산출물
   reportLink     String?
   videoLink      String?
+  workflowLink   String? // v1.5: 워크플로우 산출물 링크
 
   // 설명 / AI
   description     String? // 간략 메모

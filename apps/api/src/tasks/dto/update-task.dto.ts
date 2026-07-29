@@ -10,4 +10,8 @@ export class UpdateTaskDto extends PartialType(CreateTaskDto) {
   @IsOptional()
   @IsString()
   videoLink?: string;
+
+  @IsOptional()
+  @IsString()
+  workflowLink?: string;
 }

@@ -137,6 +137,100 @@ export class AiService {
     }
   }
 
+  // ── v1.5 · hellotms 전용: AI 요약 칸 ──
+  // 원문 텍스트 하나로 요약 doc + 추천 제목 + 추천 마감기한 + 예상 소요시간을 한 번에 생성.
+  // 신규 엔드포인트(구 TMS 미사용) — 기존 task-doc/estimate-duration 동작에는 영향 없음.
+  private static readonly SUMMARIZE_MODELS = [
+    'claude-opus-4-8',
+    'claude-sonnet-5',
+    'claude-sonnet-4-6',
+  ];
+
+  async summarizeTask(input: {
+    text: string;
+    prompt?: string;
+    model?: string;
+  }): Promise<{
+    doc: string;
+    titles: string[];
+    dueDates: { date: string; reason: string }[];
+    minutes: number;
+    durationLabel: string;
+  }> {
+    if (!input.text?.trim()) {
+      throw new BadRequestException('Text is empty');
+    }
+    const client = this.ensureClient();
+    const model =
+      input.model && AiService.SUMMARIZE_MODELS.includes(input.model)
+        ? input.model
+        : AiService.SUMMARIZE_MODELS[0];
+
+    const today = new Date().toLocaleDateString('sv-SE', {
+      timeZone: 'Asia/Seoul',
+    }); // YYYY-MM-DD (KST)
+    const docPrompt = input.prompt?.trim() || DEFAULT_DOC_PROMPT;
+    const system =
+      docPrompt +
+      '\n\n추가 요구사항: 위 지침으로 만든 업무설명 문서(doc)와 함께 다음도 생성하세요. ' +
+      '(1) titles: 이 업무에 어울리는 간결한 제목 후보 3개(한국어). ' +
+      `(2) dueDates: 오늘(${today}, KST) 기준 현실적인 마감기한 후보 2개 — date는 YYYY-MM-DD, reason은 짧은 근거 한 구절. ` +
+      '(3) minutes: 숙련된 실무자 1명 기준 순수 작업 예상 소요시간(분, 정수). ' +
+      '(4) durationLabel: 사람이 읽기 쉬운 표기(예: "약 3시간", "약 1일(8시간)"). ' +
+      '원문에 없는 사실을 지어내지 마세요.';
+
+    const msg = await client.messages.create({
+      model,
+      max_tokens: 2500,
+      system,
+      messages: [{ role: 'user', content: input.text.trim() }],
+      output_config: {
+        format: {
+          type: 'json_schema',
+          schema: {
+            type: 'object',
+            properties: {
+              doc: { type: 'string', description: '업무설명 문서(마크다운)' },
+              titles: {
+                type: 'array',
+                items: { type: 'string' },
+                description: '제목 후보 3개',
+              },
+              dueDates: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    date: { type: 'string', description: 'YYYY-MM-DD' },
+                    reason: { type: 'string', description: '짧은 근거' },
+                  },
+                  required: ['date', 'reason'],
+                  additionalProperties: false,
+                },
+                description: '마감기한 후보 2개',
+              },
+              minutes: { type: 'integer', description: '예상 소요시간(분)' },
+              durationLabel: { type: 'string', description: '읽기 쉬운 표기' },
+            },
+            required: ['doc', 'titles', 'dueDates', 'minutes', 'durationLabel'],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    try {
+      return JSON.parse(this.textOf(msg)) as {
+        doc: string;
+        titles: string[];
+        dueDates: { date: string; reason: string }[];
+        minutes: number;
+        durationLabel: string;
+      };
+    } catch {
+      throw new BadRequestException('Failed to parse AI response');
+    }
+  }
+
   /** 회의 트랜스크립트 → 간결한 제목(2단어 정도) + 회의 개요(마크다운) */
   async meetingSummary(transcript: string): Promise<{ title: string; summary: string }> {
     if (!transcript?.trim()) {

@@ -7,7 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { AiService } from './ai.service';
 
 class TaskDocDto {
@@ -31,9 +31,29 @@ class TaskDocDto {
   subCategory?: string;
 }
 
+class SummarizeTaskDto {
+  @IsString()
+  @MaxLength(20000)
+  text!: string;
+
+  @IsOptional()
+  @IsString()
+  prompt?: string;
+
+  @IsOptional()
+  @IsString()
+  model?: string;
+}
+
 @Controller('ai')
 export class AiController {
   constructor(private readonly ai: AiService) {}
+
+  // v1.5 · AI 요약 칸: 원문 → 요약 doc + 추천 제목/마감기한 + 예상 소요시간 (hellotms 전용 신규)
+  @Post('summarize-task')
+  summarizeTask(@Body() dto: SummarizeTaskDto) {
+    return this.ai.summarizeTask(dto);
+  }
 
   // 업무 부여 폼: 간략 메모 → 업무설명 doc
   @Post('task-doc')

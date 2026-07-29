@@ -88,11 +88,13 @@ export class TasksService {
   }
 
   create(dto: CreateTaskDto) {
-    const { dueDate, ...rest } = dto;
+    const { dueDate, plannedDate, ...rest } = dto;
     return this.prisma.task.create({
       data: {
         ...rest,
         dueDate: dueDate ? new Date(dueDate) : undefined,
+        // v1.5: 생성 시 할당일(plannedDate) 지정 지원 — 미전송 시 기존과 동일
+        plannedDate: plannedDate ? new Date(plannedDate) : undefined,
       },
       include: taskInclude,
     });
@@ -445,6 +447,7 @@ export class TasksService {
         pausedAt: null,
         ...(dto.reportLink !== undefined ? { reportLink: dto.reportLink } : {}),
         ...(dto.videoLink !== undefined ? { videoLink: dto.videoLink } : {}),
+        ...(dto.workflowLink !== undefined ? { workflowLink: dto.workflowLink } : {}),
       },
       include: taskInclude,
     });

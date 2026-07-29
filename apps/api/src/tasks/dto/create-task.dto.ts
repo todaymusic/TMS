@@ -44,6 +44,11 @@ export class CreateTaskDto {
   @IsBoolean()
   videoRequired?: boolean;
 
+  // v1.5: 워크플로우 산출물
+  @IsOptional()
+  @IsBoolean()
+  workflowRequired?: boolean;
+
   @IsOptional()
   @IsString()
   description?: string;

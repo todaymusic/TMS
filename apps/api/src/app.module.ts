@@ -11,6 +11,7 @@ import { ChatModule } from './chat/chat.module';
 import { LeavesModule } from './leaves/leaves.module';
 import { MeetingsModule } from './meetings/meetings.module';
 import { MemosModule } from './memos/memos.module';
+import { SubcategoriesModule } from './subcategories/subcategories.module';
 import { MessagesModule } from './messages/messages.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -40,6 +41,7 @@ import { WorkLogsModule } from './worklogs/worklogs.module';
     ScheduleModule,
     MeetingsModule,
     MemosModule,
+    SubcategoriesModule,
     PushModule,
   ],
   controllers: [AppController],
